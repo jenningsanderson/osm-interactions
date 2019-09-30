@@ -42,6 +42,6 @@ Much of this is the product of conversations at SOTM 2019, specifically discussi
 
 Related topics: [LoChas (Logical Changesets)](https://engineering.fb.com/ml-applications/mars/), & atomic changesets. 
 
-[^1] Perhaps inspired by David Garcia & Martin Dittus' _Caretography_ talk which included a similar saying. 
+[1] A concept I've been pushing in my OSM (historical) analysis work for years, I was re-inspired by David Garcia & Martin Dittus' _Caretography_ talk which included a similar saying. 
 
 ![OSM Brain](https://i.imgflip.com/3bz5ok.jpg)
