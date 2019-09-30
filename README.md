@@ -25,8 +25,8 @@ These discrete editing actions are then called `osm-interactions`. These _intera
 ... This list will contintue to grow?
 
 
-#### Why is this so important?
-My current use-case for such an approach is an extension / implementation of my _contributor-centric_ analytic approaches to OSM data analysis. My current research assessing the impact of organized editing on the map requires such approaches: it's about the actions and their results, not the status of the data: that's a known entity, it's increasing in both volume and quality.
+#### Why is this important?
+My current use-case for such an approach is an extension / implementation of _contributor-centric_ analytic approaches to OSM data analysis. My current research assessing the impact of organized editing on the map requires it: it's about the actions specifically, not so much the status of the data: that's more or less a known variable: it's increasing in both volume and quality (though that's still pretty hard to measure well).
 
 
 
