@@ -1,6 +1,6 @@
 # osm-interactions
 
-More an idea at this point than an implementable application / project, I want to document the following observations and put a plan in place to move forward.
+More an idea at this point than an implementable application / project, I want to document the following observations and put a plan/research agenda in place moving forward.
 
 ### Objective
 OSM is a _community of communities_. As such we can no longer look at the map as a single object, but to understand how the map has and will continue to evolve, we need to be able to tell the complete story behind the map. This is certainly not a new problem or realization among those in the community, but the feasibility of analyzing the map in this way has only more recently become possible through technical innovations. All the while, the community that supports the map has grown immensely and we're overdue for new tools that can reflect this.
@@ -24,19 +24,21 @@ These discrete editing actions are then `osm-interactions`. These _interactions_
 ... This list will contintue to grow?
 
 
+### Why is this so important?
+
+
+
 
 ### Requirements (A brainstorm)
- - [ ] A changeset (lookup) database that is annotated per changeset ID with additional context. "HOT:True/False", "CORP:True/False", "IMPORT:True/False", "BOT:True/False", "NEW_USER:True/False"
+ - [ ] A changeset (lookup) database that is annotated per changeset ID with additional context. `"HOT:True/False", "CORP:True/False", "IMPORT:True/False", "BOT:True/False", "NEW_USER:True/False"`
+ - [ ] A taxonomy of interaction types such as `"validation" : ["delete", "square", "tag_correction"], "import" : ["building", address", roads", "corporate":["map seeding", "navigation-detail"]...` that can be easily enumerated and applied to the entire map to get a better idea of whats changing and where. (Very similar to OSMCha)
+ - [ ] A service/API(?) that connects each of these pieces with tools like ohsome or OSMesa for historical analysis of the map in depth.
+ - [ ] A service/API(?) that incorporates more real-time edits into such analysis.
 
 
+Much of this is the product of conversations at SOTM 2019, specifically discussions with @joto, @geohacker, @batpad, @kamicut and other folks Devseed, Mapbox, and Facebook.
 
+Related topics: LoChas (Logical Changesets), & Atomic Changesets. 
 
-
-
-
-
-This idea came out of conversations at SOTM 2019, specifically discussions with folks at DevSeed, Mapbox, and Facebook.
-
-#### Longterm Vision
 
 ![OSM Brain](https://i.imgflip.com/3bz5ok.jpg)
