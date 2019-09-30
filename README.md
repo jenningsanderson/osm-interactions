@@ -12,7 +12,7 @@ These discrete editing actions are then called `osm-interactions`. These _intera
 
 ##### 1. Happen at the object level (Though are not always observable)
   - Consider the objects that a validator or secondary editor _did not edit_ when performing Q/A updates to nearby objects. This is implicit validation. While their user is not present in the history of these objects, they have implicitly validated the quality (accuracy, temporality, etc.)
-  - Otherwise, an interaction is synonymous with a new version (or [_minor version](https://www.openstreetmap.org/user/Jennings%20Anderson/diary/47133#background)_) of an object.
+  - Otherwise, an interaction is synonymous with a new version (or [_minor\_version_](https://www.openstreetmap.org/user/Jennings%20Anderson/diary/47133#background)) of an object.
 
 ##### 2. May or may not involve another user
   - Creating new objects on the map where other data does not currently exist is an interaction between a user and the map.
