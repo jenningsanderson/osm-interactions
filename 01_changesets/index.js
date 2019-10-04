@@ -6,14 +6,15 @@ const path = require('path')
 // for now, use this: 
 const HEADERS = ["id","tags","created_at","min_lat","max_lat","min_lon","max_lon","num_changes","uid","user"];
 //as generated from this
-```sql
+
+/* ```sql
     SELECT id,CAST(tags AS JSON) as tags,created_at,min_lat,max_lat,min_lon,max_lon,num_changes,uid,"user"
-```
+``` */
 
 streamReduce({
   map: path.join(__dirname, 'map-changeset-parser.js'),
-//   file: path.join(__dirname, 'sample.csv'),
-  file: path.join(__dirname, 'ghana_changesets.csv'),
+  file: path.join(__dirname, 'sample.csv'),
+//   file: path.join(__dirname, 'ghana_changesets.csv'),
   mapOptions: {
       headers: HEADERS,
       maxAreaKM: 1000 // square kilometers (larger than these is a bit excessive?)

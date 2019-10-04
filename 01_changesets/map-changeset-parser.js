@@ -56,12 +56,15 @@ module.exports = function(line, writeData, done) {
                         }
                     }
 
-                    changsetObject.properties['@area'] = areaKM
+                    changesetObject.properties['@area'] = areaKM
 
                     changesetObject.properties['@id'] = row.id
                     changesetObject.properties['@uid'] = row.uid
                     changesetObject.properties['@user'] = row.user
                     changesetObject.properties['@comment'] = tags.comment
+                    changesetObject.properties['@timestamp'] = (new Date(row.created_at)).valueOf()/1000
+                    changesetObject.properties['@changes'] = row.num_changes
+                    
                     
                     console.log(JSON.stringify(changesetObject))
                 }

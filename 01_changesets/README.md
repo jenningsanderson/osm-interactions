@@ -1,41 +1,53 @@
 Changesets
 ==========
 
-A new implementation of an older project to create tilesets of changesets, this is a [stream-reduce](//github.com/jenningsanderson/stream-reduce) script that reads output from Athena queries of the following format.
+Implements [stream-reduce](//github.com/jenningsanderson/stream-reduce), a fork of tile-reduce that reads output from Athena queries to the changesets table like: 
 
 ```sql
-SELECT id,
-         CAST(tags AS JSON) as tags,
-         created_at,
-         min_lat,
-         max_lat,
-         min_lon,
-         max_lon,
-         num_changes,
-         uid,
-         "user"
+SELECT id, CAST(tags AS JSON) as tags, created_at, min_lat, max_lat,
+         min_lon, max_lon, num_changes, uid, "user"
 FROM changesets
 WHERE min_lon > -3.2608
         AND max_lon < 1.2733
         AND min_lat > 4.5393
         AND max_lat < 11.1749
 ```
+(This is an example for all changesets in Ghana. For more insightful values, this should be time filtered: `WHERE created_at > date '2014-01-01' ` for the entire planet. 
 
-It then creates changeset objects that are points or square polygons with the standard properties:
-`@id`
-`@uid`
-`@user`
-`@comment`
+Once the CSV output is downloaded from S3 (shouldn't be _that_ big) and the options are set in `index.js` and `map-changeset-parser.js`, run it like so: 
 
-And additional: 
-`@area` = area in square km
-`@hot`  = `1` if `hotosm` was in the text, otherwise property isn't there. 
-`#[hashtag]>` = `1` if this hashtag existed in the comment, otherwise not present. Hashtags are all lowercase.
+	node index.js | tippecanoe -f -pf -pk -pg -Z12 -z12 -b0 -l changesets -o changesets.mbtiles
 
-Future additions include: `@corporate`, `@youthmapper`, `@missingmaps`, etc. These will need to be looked up by UID.
+This will create a tileset at zoom 12 with the layer `changesets` that can be paired with osm-qa-tiles to provide changeset metadata.
 
-These tilesets should be generated at z12 or z14 and then used in tandem with osm-interactions tilesets to provide valuable changeset metadata.
+Each changeset object has the following properties: 
 
-Not present: changeset comments.
+|key|value|
+|---|------|
+|`@id`| Changeset ID
+|`@uid`| User ID
+|`@user`| User name
+|`@comment`| Comment text from tags.comment
+|`@area`   | Area (in `square km`) of the changeset.
+|`@timestamp` | Timestamp (seconds) of `created_at`|
+|`@changes` | Number of changes as reported by OSM (`num_changes`)|
 
-Filtering by date should mean that tile-join could simply add features to these tilesets on a weekly basis or something?
+
+Additionally, the following properties may exist:
+
+|key|value|
+|---|------|
+|`@hot` | `1` if _hotosm_ was in the text |
+|`#[hashtag]` |  `1` if this hashtag was present in comment. Such as `{"#hotosm-task-100":1}` |
+
+All hashtags are made lowercase.
+    
+#### Future Goals
+- [ ] Changeset comments 
+- [ ] Continually adding new weekly/monthly changesets with `tippecanoe tile-join`
+- [ ] More attributes; future versions should include: 
+	
+	|key|value|
+	|---|------|
+	|`@corporate` | _company name_ if UID was a data-team member |
+	|`@youthmapper` |  _chapter name_ if UID is part of YouthMappers | 	|`@missingmaps` | `1` if this was a missing maps task |
