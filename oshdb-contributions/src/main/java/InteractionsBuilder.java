@@ -1,4 +1,4 @@
-package org.heigit.bigspatialdata.oshdb.InteractionsBuilder;
+package org.heigit.bigspatialdata.oshdb;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -41,7 +41,7 @@ public class InteractionsBuilder {
                     .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
 //                    .areaOfInterest(new OSHDBBoundingBox(26.1152, -44.5023, 26.1154, 44.5024))
 //                    .areaOfInterest(new OSHDBBoundingBox(-1.763966, -1.609479, 6.298851, 6.298851))
-                    .timestamps("2018-01-01T00:00:00Z", "2019-08-01T12:00:00Z")
+                    .timestamps("2019-01-01T00:00:00Z", "2019-08-01T12:00:00Z")
                     .osmType(OSMType.WAY)
                     .osmTag("building")
                     .groupByEntity()
@@ -76,7 +76,7 @@ public class InteractionsBuilder {
 
                                 try{
                                     String deleted = deletion(contrib);
-                                    System.out.print(deleted);
+//                                    System.out.print(deleted);
                                 }catch (Exception e) {
                                     System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
                                 }
@@ -89,7 +89,7 @@ public class InteractionsBuilder {
                                 try{
                                     String mV = minorVersion(contrib);
 
-                                    System.out.print(mV);
+//                                    System.out.print(mV);
 
                                 } catch (Exception e) {
                                     System.err.println("UNKNOWN ERROR ON OBJECT: :" + contrib.getOSHEntity());
