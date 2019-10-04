@@ -50,4 +50,5 @@ All hashtags are made lowercase.
 	|key|value|
 	|---|------|
 	|`@corporate` | _company name_ if UID was a data-team member |
-	|`@youthmapper` |  _chapter name_ if UID is part of YouthMappers | 	|`@missingmaps` | `1` if this was a missing maps task |
+	|`@youthmapper` |  _chapter name_ if UID is part of YouthMappers | 
+	|`@missingmaps` | `1` if this was a missing maps task |
