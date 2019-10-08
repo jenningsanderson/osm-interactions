@@ -24,18 +24,24 @@ map.once('load',function(){
 
   //This is for debugging locally
 
-  map.addSource("interactions-source",{
-    type: 'vector',
-    tiles: [
-      'http://localhost:4000/'+LOCAL_TILESET_NAME+'.mbtiles/{z}/{x}/{y}.pbf'
-    ],
+  // map.addSource("interactions-source",{
+  //   type: 'vector',
+  //   tiles: [
+  //     'http://localhost:4000/'+LOCAL_TILESET_NAME+'.mbtiles/{z}/{x}/{y}.pbf'
+  //   ],
+  //   maxzoom: 15
+  // })
+
+  map.addSource('interactions-source-ghana',{
+    type:'vector',
+    url: 'mapbox://jenningsanderson.31401mos',
     maxzoom: 15
   })
 
   map.addLayer({
     "id": "buildings-MV-BEFORE",
     "type": "fill",
-    'source': 'interactions-source',
+    'source': 'interactions-source-ghana',
     'source-layer':'tmp',
     'filter':['==','@edit','MV_BEFORE'],
     "paint": {
@@ -47,7 +53,7 @@ map.once('load',function(){
   map.addLayer({
     "id": "buildings-MV-AFTER",
     "type": "fill",
-    'source': 'interactions-source',
+    'source': 'interactions-source-ghana',
     'source-layer':'tmp',
     'filter':['==','@edit','MV_AFTER'],
     "paint": {
@@ -59,7 +65,7 @@ map.once('load',function(){
   map.addLayer({
     "id": "buildings-DELETED",
     "type": "fill",
-    'source': 'interactions-source',
+    'source': 'interactions-source-ghana',
     'source-layer':'tmp',
     'filter':['==','@edit','DELETION'],
     "paint": {
@@ -71,7 +77,7 @@ map.once('load',function(){
   map.addLayer({
     "id": "heatmap",
     "type": "heatmap",
-    "source": "interactions-source",
+    "source": "interactions-source-ghana",
     "source-layer": "tmp",
     "maxzoom": 9,
     "minzoom": 2,
