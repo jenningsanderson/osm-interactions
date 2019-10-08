@@ -14,6 +14,7 @@ import org.heigit.bigspatialdata.oshdb.osm.OSMEntity;
 import org.heigit.bigspatialdata.oshdb.osm.OSMType;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBBoundingBox;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBTag;
+import org.heigit.bigspatialdata.oshdb.util.celliterator.ContributionType;
 import org.heigit.bigspatialdata.oshdb.util.tagtranslator.OSMTag;
 import org.heigit.bigspatialdata.oshdb.util.tagtranslator.TagTranslator;
 import org.locationtech.jts.geom.Geometry;
@@ -26,26 +27,38 @@ public class InteractionsBuilder {
     public static int MINOR_VERSION_CHANGE = 0;
     public static int DELETED_OBJECTS = 0;
 
+    public static boolean PRINT = false;
+
     public static int count = 0;
 
     public static HashSet<Integer> minorVersionUIDs = new HashSet<>();
     public static HashSet<Integer> majorVersionUIDs = new HashSet<>();
 
     public static void main(String[] args) {
-        Path h2Path = Paths.get("/Users/jenningsanderson/Desktop/ghana-test.oshdb.mv.db");
+
+//        if(args.length > 1){
+//            System.out.println(args);
+//        }else{
+//            System.err.println("Please specify a database")
+//        }
+
+        Path h2Path = Paths.get("~/osm-interactions/oshdb-contributions/db/nepal.oshdb.mv.db");
 //        Path h2Path = Paths.get("/Users/jenningsanderson/Desktop/foss4g_2019_ro_buce.oshdb.mv.db");
         try(OSHDBH2 oshdb = new OSHDBH2(h2Path.toString())){
             TagTranslator tagTranslator = new TagTranslator(oshdb.getConnection());
 
-            Stream<String> result = OSMContributionView.on(oshdb)
-                    .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
+            //Turn on parallelization
+            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
+//                    .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
 //                    .areaOfInterest(new OSHDBBoundingBox(26.1152, -44.5023, 26.1154, 44.5024))
 //                    .areaOfInterest(new OSHDBBoundingBox(-1.763966, -1.609479, 6.298851, 6.298851))
-                    .timestamps("2019-01-01T00:00:00Z", "2019-08-01T12:00:00Z")
+                    .areaOfInterest(new OSHDBBoundingBox(83.951151,28.181861, 84.024995, 28.241129)) // Pokhara, Nepal
+                    .timestamps("2015-04-25T00:00:00Z", "2015-04-28T00:00:00Z")
                     .osmType(OSMType.WAY)
-                    .osmTag("building")
+//                    .osmTag("highway")
                     .groupByEntity()
                     .map(contribs -> {
+
                         for( OSMContribution contrib : contribs) {
                             int contribUser = contrib.getContributorUserId();
                             OSMEntity before = contrib.getEntityBefore();
@@ -53,83 +66,64 @@ public class InteractionsBuilder {
                             OSMEntity after = contrib.getEntityAfter();
                             Geometry afterGeometry = contrib.getGeometryAfter();
 
-                            /*
-
-                                Objective: Identify the type of change that happened here.
-
-                                NOTE: I'm not sure if the list of contributions themselves are guaranteed to be sorted, but also not sure it matters
-
-                            */
-
-                            //If there is no before, it's because this object was just created.
-                            if (before == null) {
-
+                            if ( contrib.getContributionTypes().contains(ContributionType.CREATION) ){
                                 NEW_OBJECTS++;
-
                                 majorVersionUIDs.add(contrib.getContributorUserId());
-
-                            } else if (!after.isVisible()) {
-
-                                DELETED_OBJECTS++;
-
-                                majorVersionUIDs.add(contrib.getContributorUserId());
-
                                 try{
-                                    String deleted = deletion(contrib);
-//                                    System.out.print(deleted);
-                                }catch (Exception e) {
-                                    System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                    String newObject = creation(contrib);
+                                    if(PRINT){ System.out.print( newObject ); }
+                                }catch (Exception e){
+                                    System.err.println("CREATION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                    e.printStackTrace();
+
                                 }
 
-                                //The object was potentially deleted, use the geometry from the previous version and annotate as such.
+                            } else if ( contrib.getContributionTypes().contains(ContributionType.DELETION) ) {
+                                DELETED_OBJECTS++;
+                                majorVersionUIDs.add(contrib.getContributorUserId());
+
+                                try {
+                                    if(PRINT){ System.out.print( deletion(contrib) ); }
+
+                                } catch (Exception e) {
+                                    System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                }
 
                             } else if (before.getVersion() == after.getVersion()) {
 
                                 //If the version numbers are the same, then we have a potential minor version
                                 try{
                                     String mV = minorVersion(contrib);
-
-//                                    System.out.print(mV);
+                                    if(PRINT){ System.out.print( mV ); }
 
                                 } catch (Exception e) {
                                     System.err.println("UNKNOWN ERROR ON OBJECT: :" + contrib.getOSHEntity());
                                 }
 
-
                             } else {
-
+                                // These are visible updates to the object that are visible on the map with versioning
                                 UPDATED_OBJECTS++;
-
                                 majorVersionUIDs.add(contrib.getContributorUserId());
 
-                                //We had a _real_ version change, so what was it?
-                                // tag comparison
-                                for (OSHDBTag tag : after.getTags()) {
-                                    int intKey = tag.getKey();
-                                    int intVal = tag.getValue();
-                                    // tag only contains ids!
-                                    // to get to the strings it self you need to translate
-                                    OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                    String strKey = translated.getKey();
-                                    String strVal = translated.getValue();
+                                if ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE ) ){
+
+                                    // TODO: A tag change, what are some major tag changes we care about?
+                                    for (OSHDBTag tag : after.getTags()) {
+                                        int intKey = tag.getKey();
+                                        int intVal = tag.getValue();
+                                        OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                                        String strKey = translated.getKey();
+                                        String strVal = translated.getValue();
+                                    }
                                 }
 
-                                if (contrib.getOSHEntity().getId()==95824315){
-                                    System.out.println("Debugging Way: \n"+afterGeometry);
+                                if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE )){
+                                    // TODO: A major geometry change occurred; what does this mean, exactly?
                                 }
                             }
-
-//                                before.getTimestamp();
-//                                System.out.println("This is an updated object with version: " + after.getVersion());
-
-//                            System.out.println("Before: " + before + " After" + after.getVersion());
-
-//                            System.out.println("");
-
                         }
-
-                        //need t actually return something here
-                        return " ";
+                        //need to actually return something here
+                        return 1;
 
                     }).stream();
 
@@ -139,7 +133,7 @@ public class InteractionsBuilder {
                 if (count%100000==0){
                     System.err.print("\r"+(count/1000)+"k");
                 }
-                count++;
+                count += s;
             });
 
         } catch (Exception e) {
@@ -161,9 +155,39 @@ public class InteractionsBuilder {
 
     }
 
-    /*
-        Tracking the specific deletion of an object and the previous geometry.
-    */
+
+
+    public static String creation(OSMContribution contrib){
+
+        GeoJsonWriter writer = new GeoJsonWriter(18);
+        writer.setEncodeCRS(false);
+
+        Geometry newGeometry = contrib.getGeometryUnclippedAfter();
+
+//        System.out.println(newGeometry);
+
+        //how long is this active for?
+//        contrib.getOSHEntity().getVersions().forEach(v -> {
+//            System.out.println(v.getTimestamp() + " | " + ""+v.getVersion());
+//        });
+
+//        System.out.println(
+//
+//        );
+
+
+        return "";
+//        {\"type\":\"Feature\",\"properties\":{"+
+//                "\"@edit\":\"DELETION\"," +
+//                "\"@uid\":" + contrib.getContributorUserId() + "," +
+//                "\"@deleted_uid\":" + contrib.getEntityBefore().getUserId() + "," +
+//                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+//                "\"@validSince\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() +"," +
+//                "\"@validUntil\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
+//                "\"geometry\":" + writer.write(newGeometry) + "}\n";
+    }
+
+
     public static String deletion(OSMContribution contrib){
 
         GeoJsonWriter writer = new GeoJsonWriter(18);
@@ -183,11 +207,16 @@ public class InteractionsBuilder {
 
     public static String minorVersion(OSMContribution contrib){
 
-        Geometry before = contrib.getGeometryBefore();
-        Geometry after  = contrib.getGeometryAfter();
+        Geometry before = contrib.getGeometryUnclippedBefore();
+        Geometry after  = contrib.getGeometryUnclippedAfter();
 
         GeoJsonWriter writer = new GeoJsonWriter(18);
                       writer.setEncodeCRS(false);
+
+        contrib.getOSHEntity().getVersions().forEach(v -> {
+            System.out.println(v.getTimestamp() + " | " + ""+v.getVersion());
+        });
+        System.out.println(" ");
 
         if (! before.equals(after) ) {
 
@@ -202,22 +231,20 @@ public class InteractionsBuilder {
             //  GeometryCollection minorEdit = new GeometryCollection([before, after]);
 
             return
+                "{\"type\":\"Feature\",\"properties\":{"+
+                        "\"@edit\":\"MV_BEFORE\"," +
+                        "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
+                        "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+                        "\"@validSince\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
+                        "\"@validUntil\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
+                        "\"geometry\":" + writer.write(before) + "}\n" +
 
-                        "{\"type\":\"Feature\",\"properties\":{"+
-                                "\"@edit\":\"MV_BEFORE\"," +
-                                "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
-                                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                                "\"@validSince\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
-                                "\"@validUntil\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-                                "\"geometry\":" + writer.write(before) + "}\n" +
-
-                        "{\"type\":\"Feature\",\"properties\":{"+
-                                "\"@edit\":\"MV_AFTER\"," +
-                                "\"@uid\":" + contrib.getContributorUserId() + "," +
-                                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                                "\"@validSince\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-                                "\"geometry\":" + writer.write(after) + "}\n";
-
+                "{\"type\":\"Feature\",\"properties\":{"+
+                        "\"@edit\":\"MV_AFTER\"," +
+                        "\"@uid\":" + contrib.getContributorUserId() + "," +
+                        "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+                        "\"@validSince\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
+                        "\"geometry\":" + writer.write(after) + "}\n";
         }else{
             return "";
         }
