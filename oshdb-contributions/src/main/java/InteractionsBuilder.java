@@ -2,6 +2,8 @@ package org.heigit.bigspatialdata.oshdb;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.stream.Stream;
 import java.util.HashSet;
 
@@ -14,10 +16,15 @@ import org.heigit.bigspatialdata.oshdb.osm.OSMEntity;
 import org.heigit.bigspatialdata.oshdb.osm.OSMType;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBBoundingBox;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBTag;
+import org.heigit.bigspatialdata.oshdb.util.celliterator.ContributionType;
 import org.heigit.bigspatialdata.oshdb.util.tagtranslator.OSMTag;
 import org.heigit.bigspatialdata.oshdb.util.tagtranslator.TagTranslator;
-import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.geojson.GeoJsonWriter;
+import org.locationtech.jts.util.GeometricShapeFactory;
+
+import static org.locationtech.jts.algorithm.Angle.angleBetween;
+import static org.locationtech.jts.algorithm.Angle.toDegrees;
 
 public class InteractionsBuilder {
 
@@ -25,121 +32,156 @@ public class InteractionsBuilder {
     public static int UPDATED_OBJECTS = 0;
     public static int MINOR_VERSION_CHANGE = 0;
     public static int DELETED_OBJECTS = 0;
+    public static int MAJOR_GEOMETRY_CHANGE = 0;
+
+    public static boolean PRINT = true;
 
     public static int count = 0;
 
-    public static HashSet<Integer> minorVersionUIDs = new HashSet<>();
+    public static HashSet<Integer> mVUIDs = new HashSet<>();
     public static HashSet<Integer> majorVersionUIDs = new HashSet<>();
 
     public static void main(String[] args) {
-        Path h2Path = Paths.get("/Users/jenningsanderson/Desktop/ghana-test.oshdb.mv.db");
+
+//        if(args.length > 1){
+//            System.out.println(args);
+//        }else{
+//            System.err.println("Please specify a database")
+//        }
+
+        Path h2Path = Paths.get("~/data/oshdb/planet-history.oshdb.mv.db");
 //        Path h2Path = Paths.get("/Users/jenningsanderson/Desktop/foss4g_2019_ro_buce.oshdb.mv.db");
         try(OSHDBH2 oshdb = new OSHDBH2(h2Path.toString())){
             TagTranslator tagTranslator = new TagTranslator(oshdb.getConnection());
 
-            Stream<String> result = OSMContributionView.on(oshdb)
-                    .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
+            //Turn on parallelization
+            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
+//            Stream<Integer> result = OSMContributionView.on(oshdb)
+//                    .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
 //                    .areaOfInterest(new OSHDBBoundingBox(26.1152, -44.5023, 26.1154, 44.5024))
 //                    .areaOfInterest(new OSHDBBoundingBox(-1.763966, -1.609479, 6.298851, 6.298851))
-                    .timestamps("2019-01-01T00:00:00Z", "2019-08-01T12:00:00Z")
+//                    .areaOfInterest(new OSHDBBoundingBox(83.951151,28.181861, 84.024995, 28.241129)) // Pokhara, Nepal
+                  //westlimit=; southlimit=; eastlimit=; northlimit=
+//                    .areaOfInterest(new OSHDBBoundingBox(83.9769,28.2122478921, 83.9805663895, 28.2146488456)) // Tiny Pokhara
+                    .areaOfInterest(new OSHDBBoundingBox(-23.0,-48.4, 157.8, 37.8)) // most of the world... no euro and no na
+//                    .timestamps("2015-04-25T00:00:00Z", "2015-06-01T00:00:00Z")
                     .osmType(OSMType.WAY)
-                    .osmTag("building")
+//                    .osmTag("building")
                     .groupByEntity()
                     .map(contribs -> {
+
+                        //Iterates through the contributions, sorted by timestamp ASC;
+
+                        int idx = 0;
+                        int minorVersionValue = 0;
+                        long oneLaterContribTime = 0;
+
                         for( OSMContribution contrib : contribs) {
-                            int contribUser = contrib.getContributorUserId();
+
                             OSMEntity before = contrib.getEntityBefore();
-                            Geometry beforeGeometry = contrib.getGeometryBefore();
                             OSMEntity after = contrib.getEntityAfter();
-                            Geometry afterGeometry = contrib.getGeometryAfter();
 
-                            /*
+                            //If there is another contribution after this one, get that value.
+                            if (idx==contribs.size()-1){
+                                oneLaterContribTime = 0;
+                            }else if (contribs.size() > (idx+1)){
+                                oneLaterContribTime = contribs.get(idx+1).getTimestamp().getRawUnixTimestamp();
+                            }
 
-                                Objective: Identify the type of change that happened here.
+//                            if (contrib.getOSHEntity().getId()==341930865) {
+//                                System.out.println(""+idx + "" + contrib.getEntityAfter().getVersion()+ " | " + oneLaterContribTime);
+//                            }
 
-                                NOTE: I'm not sure if the list of contributions themselves are guaranteed to be sorted, but also not sure it matters
-
-                            */
-
-                            //If there is no before, it's because this object was just created.
-                            if (before == null) {
-
+                            if ( contrib.getContributionTypes().contains(ContributionType.CREATION) ){
                                 NEW_OBJECTS++;
-
-                                majorVersionUIDs.add(contrib.getContributorUserId());
-
-                            } else if (!after.isVisible()) {
-
-                                DELETED_OBJECTS++;
-
                                 majorVersionUIDs.add(contrib.getContributorUserId());
 
                                 try{
-                                    String deleted = deletion(contrib);
-//                                    System.out.print(deleted);
-                                }catch (Exception e) {
-                                    System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                    String newObject = creation(contrib, oneLaterContribTime);
+                                    if(PRINT){ System.out.print( newObject ); }
+                                }catch (Exception e){
+                                    System.err.println("CREATION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                    e.printStackTrace();
                                 }
 
-                                //The object was potentially deleted, use the geometry from the previous version and annotate as such.
+                            } else if ( contrib.getContributionTypes().contains(ContributionType.DELETION) ) {
+                                DELETED_OBJECTS++;
+                                majorVersionUIDs.add(contrib.getContributorUserId());
+
+                                try {
+                                    if(PRINT){ System.out.print( deletion(contrib) ); }
+
+                                } catch (Exception e) {
+                                    System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                }
 
                             } else if (before.getVersion() == after.getVersion()) {
 
                                 //If the version numbers are the same, then we have a potential minor version
                                 try{
-                                    String mV = minorVersion(contrib);
-
-//                                    System.out.print(mV);
+                                    if (yieldsMinorVersion(contrib)) {
+                                        minorVersionValue++;
+                                        MINOR_VERSION_CHANGE++;
+                                        mVUIDs.add(contrib.getContributorUserId());
+                                        String mV = minorVersion(contrib, oneLaterContribTime, minorVersionValue);
+                                        if(PRINT){ System.out.print( mV ); }
+                                    }
 
                                 } catch (Exception e) {
                                     System.err.println("UNKNOWN ERROR ON OBJECT: :" + contrib.getOSHEntity());
                                 }
 
-
                             } else {
-
+                                //It's a major version, so reset the mV counter
+                                minorVersionValue = 0;
+                                // These are visible updates to the object that are visible on the map with versioning
                                 UPDATED_OBJECTS++;
-
                                 majorVersionUIDs.add(contrib.getContributorUserId());
 
-                                //We had a _real_ version change, so what was it?
-                                // tag comparison
-                                for (OSHDBTag tag : after.getTags()) {
-                                    int intKey = tag.getKey();
-                                    int intVal = tag.getValue();
-                                    // tag only contains ids!
-                                    // to get to the strings it self you need to translate
-                                    OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                    String strKey = translated.getKey();
-                                    String strVal = translated.getValue();
-                                }
+                                if ( ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE) &&
+                                       contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE) ) ){
 
-                                if (contrib.getOSHEntity().getId()==95824315){
-                                    System.out.println("Debugging Way: \n"+afterGeometry);
+                                    // TODO: A tag AND geometry change occurred
+
+                                }else if ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE ) ){
+
+                                    // TODO: A tag change, what are some major tag changes we care about?
+                                    for (OSHDBTag tag : after.getTags()) {
+                                        int intKey = tag.getKey();
+                                        int intVal = tag.getValue();
+                                        OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                                        String strKey = translated.getKey();
+                                        String strVal = translated.getValue();
+                                    }
+                                } else if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE )){
+                                    // TODO: A major geometry change occurred; what does this mean, exactly?
+
+                                    try{
+                                        String majorGeomChange = majorGeometry(contrib, oneLaterContribTime);
+                                        if(PRINT){ System.out.print( majorGeomChange ); }
+
+                                    } catch (Exception e) {
+                                        System.err.println("Major Geometry Change Failure: " + contrib.getOSHEntity());
+                                    }
                                 }
                             }
 
-//                                before.getTimestamp();
-//                                System.out.println("This is an updated object with version: " + after.getVersion());
-
-//                            System.out.println("Before: " + before + " After" + after.getVersion());
-
-//                            System.out.println("");
-
+                            // Save this contribution :)
+                            oneLaterContribTime = contrib.getTimestamp().getRawUnixTimestamp();
+                            idx++;
                         }
-
-                        //need t actually return something here
-                        return " ";
+                        //need to actually return something here
+                        return 1;
 
                     }).stream();
 
             result.forEach(s -> {
                 //need to actually do something here to call it.
-//                System.out.print(s);
+//                System.out.println("-----");
                 if (count%100000==0){
                     System.err.print("\r"+(count/1000)+"k");
                 }
-                count++;
+                count += s;
             });
 
         } catch (Exception e) {
@@ -151,75 +193,274 @@ public class InteractionsBuilder {
         System.err.println("\nStatus: \n"+
                 "\tNew objects....... "+ NEW_OBJECTS +"\n"+
                 "\tUpdated Objects... "+ UPDATED_OBJECTS +"\n"+
+                "\tMajor Geometries.. "+ MAJOR_GEOMETRY_CHANGE +"\n"+
                 "\tMinor Versions.... "+ MINOR_VERSION_CHANGE +"\n"+
                 "\tDeleted Objects... "+ DELETED_OBJECTS);
 
+
         System.err.println("========================");
-        System.err.println("Minor version users: "+minorVersionUIDs.size());
+        System.err.println("Minor version users: "+mVUIDs.size());
         System.err.println("Major version users: "+majorVersionUIDs.size());
-        System.err.println("\tDifference: " + Sets.difference(minorVersionUIDs,majorVersionUIDs).size());
+        System.err.println("\tDifference: " + Sets.difference(mVUIDs,majorVersionUIDs).size());
 
     }
 
-    /*
-        Tracking the specific deletion of an object and the previous geometry.
-    */
+    public static boolean yieldsMinorVersion(OSMContribution contrib){
+        Geometry before = contrib.getGeometryUnclippedBefore();
+        Geometry after  = contrib.getGeometryUnclippedAfter();
+
+        if (! before.equals(after) ) {
+            return true;
+        }else {
+            return false;
+        }
+    }
+
+
+
+    public static String creation(OSMContribution contrib, long oneLater){
+
+        GeoJsonWriter writer = new GeoJsonWriter(18);
+        writer.setEncodeCRS(false);
+
+        Geometry newGeometry = contrib.getGeometryUnclippedAfter();
+
+        return "{\"type\":\"Feature\",\"properties\":{"+
+                "\"@e\":\"CRE\"," +
+                "\"@uid\":" + contrib.getContributorUserId() + "," +
+                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+                "\"@c\":" + contrib.getChangesetId() + "," +
+                "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
+                "\"@vU\":" + ( (oneLater == 0) ? null : oneLater )+ "}," +
+                "\"geometry\":" + writer.write(newGeometry) + "}\n";
+    }
+
+
     public static String deletion(OSMContribution contrib){
 
         GeoJsonWriter writer = new GeoJsonWriter(18);
         writer.setEncodeCRS(false);
 
-        Geometry beforeGeometry = contrib.getGeometryBefore();
+        Geometry beforeGeometry = contrib.getGeometryUnclippedBefore();
 
         return "{\"type\":\"Feature\",\"properties\":{"+
-                "\"@edit\":\"DELETION\"," +
+                "\"@e\":\"DEL\"," +
                 "\"@uid\":" + contrib.getContributorUserId() + "," +
-                "\"@deleted_uid\":" + contrib.getEntityBefore().getUserId() + "," +
+                "\"@duid\":" + contrib.getEntityBefore().getUserId() + "," +
                 "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                "\"@validSince\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() +"," +
-                "\"@validUntil\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
+                "\"@c\":" + contrib.getChangesetId() + "," +
+                "\"@vS\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() +"," +
+                "\"@vU\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
                 "\"geometry\":" + writer.write(beforeGeometry) + "}\n";
     }
 
-    public static String minorVersion(OSMContribution contrib){
-
-        Geometry before = contrib.getGeometryBefore();
-        Geometry after  = contrib.getGeometryAfter();
+    public static String minorVersion(OSMContribution contrib, long oneLater, int mV){
 
         GeoJsonWriter writer = new GeoJsonWriter(18);
                       writer.setEncodeCRS(false);
 
+        DecimalFormat numberFormat = new DecimalFormat("0.0000");
+
+        String sq = "";
+        if (contrib.getGeometryUnclippedAfter().getGeometryType().contains("Polygon") ){
+            sq = "\"@sq\":"+  numberFormat.format( avgSquareOffsetProjected(contrib.getGeometryUnclippedAfter()) - avgSquareOffsetProjected(contrib.getGeometryUnclippedBefore()) )+",";
+        }
+
+        return "{\"type\":\"Feature\",\"properties\":{"+
+                        "\"@e\":\"MV\"," +
+                        "\"@mV\":"+ mV + "," +
+                        "\"@uid\":" + contrib.getContributorUserId() + "," +
+                        "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+                        "\"@c\":" + contrib.getChangesetId() + "," + sq +
+                        "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
+                        "\"@vU\":" + ( (oneLater == 0) ? null : oneLater )+ "}," +
+                        "\"geometry\":" + writer.write(contrib.getGeometryUnclippedAfter()) + "}\n";
+
+//               "{\"type\":\"Feature\",\"properties\":{"+
+//                        "\"@e\":\"MV_BEFORE\"," +
+//                        "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
+//                        "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+//                        "\"@vS\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
+//                        "\"@vU\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
+//                        "\"geometry\":" + writer.write(before) + "}\n" +
+
+    }
+
+    public static String majorGeometry(OSMContribution contrib, long oneLater){
+
+        Geometry before = contrib.getGeometryUnclippedBefore();
+        Geometry after  = contrib.getGeometryUnclippedAfter();
+
+        GeoJsonWriter writer = new GeoJsonWriter(18);
+        writer.setEncodeCRS(false);
+
+        DecimalFormat numberFormat = new DecimalFormat("#.0000");
+
         if (! before.equals(after) ) {
 
-            //We have a minor geometry change in which a user has changed the nodes.
+            MAJOR_GEOMETRY_CHANGE++;
 
-            MINOR_VERSION_CHANGE++;
-
-            minorVersionUIDs.add(contrib.getContributorUserId());
-
-            // TODO: Eventually this could be turned into a boolean to create smarter objects around these types of edits.
-            //       For now, print out geometries we can use to illustrate the point with the appropriate timestamps.
-            //  GeometryCollection minorEdit = new GeometryCollection([before, after]);
+            String sq = "";
+            if (contrib.getGeometryUnclippedAfter().getGeometryType().contains("Polygon") ){
+                sq = "\"@sq\":"+ numberFormat.format( ( avgSquareOffsetProjected(after) - avgSquareOffsetProjected(before) ) )+",";
+            }
 
             return
+//                    "{\"type\":\"Feature\",\"properties\":{"+
+//                            "\"@e\":\"MG_BEFORE\"," +
+//                            "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
+//                            "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+//                            "\"@vS\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
+//                            "\"@vU\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
+//                            "\"geometry\":" + writer.write(before) + "}\n" +
 
-                        "{\"type\":\"Feature\",\"properties\":{"+
-                                "\"@edit\":\"MV_BEFORE\"," +
-                                "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
-                                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                                "\"@validSince\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
-                                "\"@validUntil\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-                                "\"geometry\":" + writer.write(before) + "}\n" +
-
-                        "{\"type\":\"Feature\",\"properties\":{"+
-                                "\"@edit\":\"MV_AFTER\"," +
-                                "\"@uid\":" + contrib.getContributorUserId() + "," +
-                                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                                "\"@validSince\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-                                "\"geometry\":" + writer.write(after) + "}\n";
-
+                            "{\"type\":\"Feature\",\"properties\":{"+
+                            "\"@e\":\"MG\"," + sq +
+                            "\"@c\":" + contrib.getChangesetId() +","+
+                            "\"@uid\":" + contrib.getContributorUserId() + "," +
+                            "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+                            "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
+                            "\"@vU\":" + ( (oneLater == 0) ? null : oneLater )+ "}," +
+                            "\"geometry\":" + writer.write(after) + "}\n";
         }else{
             return "";
         }
     }
+
+    private static Coordinate projectToSphere(Coordinate coord){
+        Deg2UTM coord2 = new Deg2UTM(coord.getY(), coord.getX());
+
+        return new Coordinate(coord2.Easting,coord2.Northing,0.);
+    }
+
+
+    public static double avgSquareOffsetProjected(Geometry geom){
+
+        Coordinate[] corners = geom.getCoordinates();
+
+        if (corners.length > 2) {
+            ArrayList<Double> cornerAngles = new ArrayList<Double>();
+            for (int i = 2; i < corners.length; i++) {
+
+                cornerAngles.add(toDegrees(angleBetween(projectToSphere( corners[i - 2] ), projectToSphere( corners[i - 1]) , projectToSphere( corners[i]))));
+            }
+            cornerAngles.add(toDegrees(angleBetween(projectToSphere( corners[corners.length - 2]), projectToSphere(corners[0]), projectToSphere( corners[1])))); //Remember, if it's closed -1 == 0;
+
+            double avgError = 0;
+            for (Double angle : cornerAngles) {
+                //If the angle is closer to 180 than 90, then mod 90;
+                if (angle > 135) {
+                    angle = angle % 90;
+                }
+                avgError += Math.abs(angle - 90);
+            }
+            avgError /= cornerAngles.size();
+//            GeoJsonWriter writer = new GeoJsonWriter(18);
+//            writer.setEncodeCRS(false);
+//            System.out.println(writer.write(geom) + "\nProj:" + avgError + " | " + cornerAngles);
+
+            return avgError;
+
+        }else{
+            return 100;
+        }
+    }
+
+    //https://stackoverflow.com/questions/176137/java-convert-lat-lon-to-utm
+    private static class Deg2UTM
+    {
+        double Easting;
+        double Northing;
+        int Zone;
+        char Letter;
+        private  Deg2UTM(double Lat,double Lon)
+        {
+            Zone= (int) Math.floor(Lon/6+31);
+            if (Lat<-72)
+                Letter='C';
+            else if (Lat<-64)
+                Letter='D';
+            else if (Lat<-56)
+                Letter='E';
+            else if (Lat<-48)
+                Letter='F';
+            else if (Lat<-40)
+                Letter='G';
+            else if (Lat<-32)
+                Letter='H';
+            else if (Lat<-24)
+                Letter='J';
+            else if (Lat<-16)
+                Letter='K';
+            else if (Lat<-8)
+                Letter='L';
+            else if (Lat<0)
+                Letter='M';
+            else if (Lat<8)
+                Letter='N';
+            else if (Lat<16)
+                Letter='P';
+            else if (Lat<24)
+                Letter='Q';
+            else if (Lat<32)
+                Letter='R';
+            else if (Lat<40)
+                Letter='S';
+            else if (Lat<48)
+                Letter='T';
+            else if (Lat<56)
+                Letter='U';
+            else if (Lat<64)
+                Letter='V';
+            else if (Lat<72)
+                Letter='W';
+            else
+                Letter='X';
+            Easting=0.5*Math.log((1+Math.cos(Lat*Math.PI/180)*Math.sin(Lon*Math.PI/180-(6*Zone-183)*Math.PI/180))/(1-Math.cos(Lat*Math.PI/180)*Math.sin(Lon*Math.PI/180-(6*Zone-183)*Math.PI/180)))*0.9996*6399593.62/Math.pow((1+Math.pow(0.0820944379, 2)*Math.pow(Math.cos(Lat*Math.PI/180), 2)), 0.5)*(1+ Math.pow(0.0820944379,2)/2*Math.pow((0.5*Math.log((1+Math.cos(Lat*Math.PI/180)*Math.sin(Lon*Math.PI/180-(6*Zone-183)*Math.PI/180))/(1-Math.cos(Lat*Math.PI/180)*Math.sin(Lon*Math.PI/180-(6*Zone-183)*Math.PI/180)))),2)*Math.pow(Math.cos(Lat*Math.PI/180),2)/3)+500000;
+            Easting=Math.round(Easting*100)*0.01;
+            Northing = (Math.atan(Math.tan(Lat*Math.PI/180)/Math.cos((Lon*Math.PI/180-(6*Zone -183)*Math.PI/180)))-Lat*Math.PI/180)*0.9996*6399593.625/Math.sqrt(1+0.006739496742*Math.pow(Math.cos(Lat*Math.PI/180),2))*(1+0.006739496742/2*Math.pow(0.5*Math.log((1+Math.cos(Lat*Math.PI/180)*Math.sin((Lon*Math.PI/180-(6*Zone -183)*Math.PI/180)))/(1-Math.cos(Lat*Math.PI/180)*Math.sin((Lon*Math.PI/180-(6*Zone -183)*Math.PI/180)))),2)*Math.pow(Math.cos(Lat*Math.PI/180),2))+0.9996*6399593.625*(Lat*Math.PI/180-0.005054622556*(Lat*Math.PI/180+Math.sin(2*Lat*Math.PI/180)/2)+4.258201531e-05*(3*(Lat*Math.PI/180+Math.sin(2*Lat*Math.PI/180)/2)+Math.sin(2*Lat*Math.PI/180)*Math.pow(Math.cos(Lat*Math.PI/180),2))/4-1.674057895e-07*(5*(3*(Lat*Math.PI/180+Math.sin(2*Lat*Math.PI/180)/2)+Math.sin(2*Lat*Math.PI/180)*Math.pow(Math.cos(Lat*Math.PI/180),2))/4+Math.sin(2*Lat*Math.PI/180)*Math.pow(Math.cos(Lat*Math.PI/180),2)*Math.pow(Math.cos(Lat*Math.PI/180),2))/3);
+            if (Letter<'M')
+                Northing = Northing + 10000000;
+            Northing=Math.round(Northing*100)*0.01;
+        }
+    }
 }
+
+
+
+
+/*
+
+    public static double avgSquareOffset(Geometry geom){
+
+        Coordinate[] corners = geom.getCoordinates();
+
+        if (corners.length > 2) {
+            ArrayList<Double> cornerAngles = new ArrayList<Double>();
+            for (int i = 2; i < corners.length; i++) {
+
+                cornerAngles.add(toDegrees(angleBetween(corners[i - 2], corners[i - 1], corners[i])));
+            }
+            cornerAngles.add(toDegrees(angleBetween(corners[corners.length - 2], corners[0], corners[1]))); //Remember, if it's closed -1 == 0;
+
+            double avgError = 0;
+            for (Double angle : cornerAngles) {
+                //If the angle is closer to 180 than 90, then mod 90;
+                if (angle > 135) {
+                    angle = angle % 90;
+                }
+                avgError += Math.abs(angle - 90);
+            }
+            avgError /= cornerAngles.size();
+            GeoJsonWriter writer = new GeoJsonWriter(18);
+            writer.setEncodeCRS(false);
+            System.out.println(writer.write(geom) + "\n" + avgError + " | " + cornerAngles);
+
+            return avgError;
+
+        }else{
+            return 100;
+        }
+    }
+ */
+

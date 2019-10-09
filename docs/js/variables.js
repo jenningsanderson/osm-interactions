@@ -3,7 +3,7 @@ var LAYERS  = ['buildings-MV-BEFORE','buildings-MV-AFTER','buildings-DELETED']
 // Load a default timeline
 PATH = "data/timelinedata.json";
 
-LOCAL_TILESET_NAME = 'tmp'
+LOCAL_TILESET_NAME = 'ghana'
 
 var startDateInt = 0;
 var endDateInt   = 2546475325; //2050
