@@ -1,7 +1,9 @@
 'use strict';
 
-const csv = require('fast-csv');
+// const csv = require('fast-csv');
 
+// const parse = require('csv-parse')
+const parse = require('csv-parse/lib/sync');
 const turf = require('@turf/turf');
 
 const HEADERS = mapOptions.headers;
@@ -12,67 +14,63 @@ const HOT = true;
 const CORP = false;
 
 module.exports = function(line, writeData, done) {
-    
-    csv.parseString(line, { headers: HEADERS })
-        .on('error', error => console.error(error))
-        .on('data', row => {
-        
-            try{
+     
+    const row = parse(line.trim(), {columns: HEADERS})[0]
+                     
+    try{
 
-                var changesetObject = turf.bboxPolygon([
-                    Number(row.min_lon), 
-                    Number(row.min_lat), 
-                    Number(row.max_lon), 
-                    Number(row.max_lat)]);
+        var changesetObject = turf.bboxPolygon([
+            Number(row.min_lon), 
+            Number(row.min_lat), 
+            Number(row.max_lon), 
+            Number(row.max_lat)]);
 
-                var areaKM = turf.area(changesetObject) / 1000000
+        var areaKM = turf.area(changesetObject) / 1000000
 
-                //Convert to point if it was really a point object.
-                if (areaKM == 0){
-                    changesetObject.geometry.type = 'Point'
-                    changesetObject.geometry.coordinates = [Number(row.min_lon),Number(row.min_lat)]
-                }
+        //Convert to point if it was really a point object.
+        if (areaKM == 0){
+            changesetObject.geometry.type = 'Point'
+            changesetObject.geometry.coordinates = [Number(row.min_lon),Number(row.min_lat)]
+        }
 
-                if (areaKM < MAX_AREA){
+        if (areaKM < MAX_AREA){
 
-                    var tags = JSON.parse(row.tags)
+            var tags = JSON.parse(row.tags)
 
-                    if ( tags.hasOwnProperty('comment') ){
+            if ( tags.hasOwnProperty('comment') ){
 
-                        if(ALL_HASHTAGS){
-                            if(tags.comment.indexOf('#') > -1 ) {
-                                tags.comment.split(" ").forEach(function(w){
-                                    if (w.startsWith("#") ){
-                                        changesetObject.properties[w.toLowerCase()] = 1;
-                                    }
-                                })
+                if(ALL_HASHTAGS){
+                    if(tags.comment.indexOf('#') > -1 ) {
+                        tags.comment.split(" ").forEach(function(w){
+                            if (w.startsWith("#") ){
+                                changesetObject.properties[w.toLowerCase()] = 1;
                             }
-                        }
-
-                        if(HOT){
-                            if ( tags.comment.indexOf('hotosm') > -1){
-                                changesetObject.properties['@hot'] = 1
-                            }
-                        }
+                        })
                     }
-
-                    changesetObject.properties['@area'] = areaKM
-
-                    changesetObject.properties['@id'] = row.id
-                    changesetObject.properties['@uid'] = row.uid
-                    changesetObject.properties['@user'] = row.user
-                    changesetObject.properties['@comment'] = tags.comment
-                    changesetObject.properties['@timestamp'] = (new Date(row.created_at)).valueOf()/1000
-                    changesetObject.properties['@changes'] = row.num_changes
-                    
-                    
-                    console.log(JSON.stringify(changesetObject))
                 }
-            }catch(e){
-                console.error(e)
-//                 console.error(row)
+
+                if(HOT){
+                    if ( tags.comment.indexOf('hotosm') > -1){
+                        changesetObject.properties['@hot'] = 1
+                    }
+                }
             }
-        })
-    //TODO: Pass something more exciting back
+
+            changesetObject.properties['@area'] = areaKM
+
+            changesetObject.properties['@id'] = row.id
+            changesetObject.properties['@uid'] = row.uid
+            changesetObject.properties['@user'] = row.user
+            changesetObject.properties['@comment'] = tags.comment
+            changesetObject.properties['@timestamp'] = (new Date(row.created_at)).valueOf()/1000
+            changesetObject.properties['@changes'] = row.num_changes
+
+            writeData(JSON.stringify(changesetObject)+"\n");
+        }
+    }catch(e){
+        console.error(e)
+        console.error(row)
+    }
+
     done(null, null); 
 }
