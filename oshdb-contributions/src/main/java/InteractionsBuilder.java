@@ -294,7 +294,7 @@ public class InteractionsBuilder {
         GeoJsonWriter writer = new GeoJsonWriter(18);
         writer.setEncodeCRS(false);
 
-        DecimalFormat numberFormat = new DecimalFormat("#.0000");
+        DecimalFormat numberFormat = new DecimalFormat("0.0000");
 
         if (! before.equals(after) ) {
 
