@@ -21,10 +21,11 @@ import org.heigit.bigspatialdata.oshdb.util.tagtranslator.OSMTag;
 import org.heigit.bigspatialdata.oshdb.util.tagtranslator.TagTranslator;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.geojson.GeoJsonWriter;
-import org.locationtech.jts.util.GeometricShapeFactory;
 
 import static org.locationtech.jts.algorithm.Angle.angleBetween;
 import static org.locationtech.jts.algorithm.Angle.toDegrees;
+
+import Interaction;
 
 public class InteractionsBuilder {
 
@@ -62,8 +63,8 @@ public class InteractionsBuilder {
 //                    .areaOfInterest(new OSHDBBoundingBox(-1.763966, -1.609479, 6.298851, 6.298851))
 //                    .areaOfInterest(new OSHDBBoundingBox(83.951151,28.181861, 84.024995, 28.241129)) // Pokhara, Nepal
                   //westlimit=; southlimit=; eastlimit=; northlimit=
-//                    .areaOfInterest(new OSHDBBoundingBox(83.9769,28.2122478921, 83.9805663895, 28.2146488456)) // Tiny Pokhara
-                    .areaOfInterest(new OSHDBBoundingBox(-23.0,-48.4, 157.8, 37.8)) // most of the world... no euro and no na
+                    .areaOfInterest(new OSHDBBoundingBox(83.9769,28.2122478921, 83.9805663895, 28.2146488456)) // Tiny Pokhara
+//                    .areaOfInterest(new OSHDBBoundingBox(-23.0,-48.4, 157.8, 37.8)) // most of the world... no euro and no na
 //                    .timestamps("2015-04-25T00:00:00Z", "2015-06-01T00:00:00Z")
                     .osmType(OSMType.WAY)
 //                    .osmTag("building")
@@ -76,7 +77,12 @@ public class InteractionsBuilder {
                         int minorVersionValue = 0;
                         long oneLaterContribTime = 0;
 
+
                         for( OSMContribution contrib : contribs) {
+
+                            Interaction thisINteraction = Interaction(enhancedContrib
+
+                            String contribPropertyString = "";
 
                             OSMEntity before = contrib.getEntityBefore();
                             OSMEntity after = contrib.getEntityAfter();
@@ -97,8 +103,7 @@ public class InteractionsBuilder {
                                 majorVersionUIDs.add(contrib.getContributorUserId());
 
                                 try{
-                                    String newObject = creation(contrib, oneLaterContribTime);
-                                    if(PRINT){ System.out.print( newObject ); }
+                                    contribPropertyString = creation(contrib);
                                 }catch (Exception e){
                                     System.err.println("CREATION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
                                     e.printStackTrace();
@@ -109,8 +114,7 @@ public class InteractionsBuilder {
                                 majorVersionUIDs.add(contrib.getContributorUserId());
 
                                 try {
-                                    if(PRINT){ System.out.print( deletion(contrib) ); }
-
+                                    contribPropertyString = deletion(contrib);
                                 } catch (Exception e) {
                                     System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
                                 }
@@ -123,8 +127,7 @@ public class InteractionsBuilder {
                                         minorVersionValue++;
                                         MINOR_VERSION_CHANGE++;
                                         mVUIDs.add(contrib.getContributorUserId());
-                                        String mV = minorVersion(contrib, oneLaterContribTime, minorVersionValue);
-                                        if(PRINT){ System.out.print( mV ); }
+                                        contribPropertyString = minorVersion(contrib, minorVersionValue);
                                     }
 
                                 } catch (Exception e) {
@@ -138,13 +141,7 @@ public class InteractionsBuilder {
                                 UPDATED_OBJECTS++;
                                 majorVersionUIDs.add(contrib.getContributorUserId());
 
-                                if ( ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE) &&
-                                       contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE) ) ){
-
-                                    // TODO: A tag AND geometry change occurred
-
-                                }else if ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE ) ){
-
+                                if ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE) ){
                                     // TODO: A tag change, what are some major tag changes we care about?
                                     for (OSHDBTag tag : after.getTags()) {
                                         int intKey = tag.getKey();
@@ -153,31 +150,47 @@ public class InteractionsBuilder {
                                         String strKey = translated.getKey();
                                         String strVal = translated.getValue();
                                     }
-                                } else if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE )){
-                                    // TODO: A major geometry change occurred; what does this mean, exactly?
+
+                                    contribPropertyString += "\"@TC\":true,";
+
+                                } if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE )){
 
                                     try{
-                                        String majorGeomChange = majorGeometry(contrib, oneLaterContribTime);
-                                        if(PRINT){ System.out.print( majorGeomChange ); }
-
+                                        contribPropertyString += majorGeometry(contrib);
                                     } catch (Exception e) {
                                         System.err.println("Major Geometry Change Failure: " + contrib.getOSHEntity());
                                     }
                                 }
                             }
 
-                            // Save this contribution :)
+
+                            if( PRINT && !contribPropertyString.equals("") ){
+                              System.out.println( "{\"type\":\"Feature\",\"properties\":{"+
+
+                                //add properties here
+                                contribPropertyString +
+
+//                                "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
+//                                "\"@vU\":" + ( (oneLaterContribTime == 0) ? null : oneLaterContribTime ) + "," +
+//                                "\"@uid\":" + contrib.getContributorUserId() + "," +
+//                                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+//                                "\"@c\":" + contrib.getChangesetId() + "},"
+                                enhancedContrib.get
+//                                + "}" +
+                                "\"geometry\":" + getGeometryString(contrib) + "}");
+                            }
+
                             oneLaterContribTime = contrib.getTimestamp().getRawUnixTimestamp();
                             idx++;
+
                         }
                         //need to actually return something here
-                        return 1;
+                        return idx+1;
 
                     }).stream();
 
             result.forEach(s -> {
                 //need to actually do something here to call it.
-//                System.out.println("-----");
                 if (count%100000==0){
                     System.err.print("\r"+(count/1000)+"k");
                 }
@@ -216,77 +229,34 @@ public class InteractionsBuilder {
         }
     }
 
+    public static String creation(OSMContribution contrib){
 
+        return "\"@e\":\"CRE\",";
 
-    public static String creation(OSMContribution contrib, long oneLater){
-
-        GeoJsonWriter writer = new GeoJsonWriter(18);
-        writer.setEncodeCRS(false);
-
-        Geometry newGeometry = contrib.getGeometryUnclippedAfter();
-
-        return "{\"type\":\"Feature\",\"properties\":{"+
-                "\"@e\":\"CRE\"," +
-                "\"@uid\":" + contrib.getContributorUserId() + "," +
-                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                "\"@c\":" + contrib.getChangesetId() + "," +
-                "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
-                "\"@vU\":" + ( (oneLater == 0) ? null : oneLater )+ "}," +
-                "\"geometry\":" + writer.write(newGeometry) + "}\n";
     }
-
 
     public static String deletion(OSMContribution contrib){
 
-        GeoJsonWriter writer = new GeoJsonWriter(18);
-        writer.setEncodeCRS(false);
+        return  "\"@e\":\"DEL\"," +
+                "\"@duid\":" + contrib.getEntityBefore().getUserId() + ",";
 
-        Geometry beforeGeometry = contrib.getGeometryUnclippedBefore();
-
-        return "{\"type\":\"Feature\",\"properties\":{"+
-                "\"@e\":\"DEL\"," +
-                "\"@uid\":" + contrib.getContributorUserId() + "," +
-                "\"@duid\":" + contrib.getEntityBefore().getUserId() + "," +
-                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                "\"@c\":" + contrib.getChangesetId() + "," +
-                "\"@vS\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() +"," +
-                "\"@vU\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-                "\"geometry\":" + writer.write(beforeGeometry) + "}\n";
     }
 
-    public static String minorVersion(OSMContribution contrib, long oneLater, int mV){
-
-        GeoJsonWriter writer = new GeoJsonWriter(18);
-                      writer.setEncodeCRS(false);
+    public static String minorVersion(OSMContribution contrib, int mV){
 
         DecimalFormat numberFormat = new DecimalFormat("0.0000");
 
         String sq = "";
         if (contrib.getGeometryUnclippedAfter().getGeometryType().contains("Polygon") ){
-            sq = "\"@sq\":"+  numberFormat.format( avgSquareOffsetProjected(contrib.getGeometryUnclippedAfter()) - avgSquareOffsetProjected(contrib.getGeometryUnclippedBefore()) )+",";
+            sq = "\"@sq\":" + numberFormat.format( avgSquareOffsetProjected(contrib.getGeometryUnclippedAfter()) - avgSquareOffsetProjected(contrib.getGeometryUnclippedBefore()) )+",";
         }
 
-        return "{\"type\":\"Feature\",\"properties\":{"+
-                        "\"@e\":\"MV\"," +
-                        "\"@mV\":"+ mV + "," +
-                        "\"@uid\":" + contrib.getContributorUserId() + "," +
-                        "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                        "\"@c\":" + contrib.getChangesetId() + "," + sq +
-                        "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
-                        "\"@vU\":" + ( (oneLater == 0) ? null : oneLater )+ "}," +
-                        "\"geometry\":" + writer.write(contrib.getGeometryUnclippedAfter()) + "}\n";
-
-//               "{\"type\":\"Feature\",\"properties\":{"+
-//                        "\"@e\":\"MV_BEFORE\"," +
-//                        "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
-//                        "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-//                        "\"@vS\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
-//                        "\"@vU\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-//                        "\"geometry\":" + writer.write(before) + "}\n" +
+        return "\"@e\":\"MV\"," +
+               "\"@mV\":"+ mV + "," + sq;
 
     }
 
-    public static String majorGeometry(OSMContribution contrib, long oneLater){
+    public static String majorGeometry(OSMContribution contrib){
 
         Geometry before = contrib.getGeometryUnclippedBefore();
         Geometry after  = contrib.getGeometryUnclippedAfter();
@@ -305,25 +275,25 @@ public class InteractionsBuilder {
                 sq = "\"@sq\":"+ numberFormat.format( ( avgSquareOffsetProjected(after) - avgSquareOffsetProjected(before) ) )+",";
             }
 
-            return
-//                    "{\"type\":\"Feature\",\"properties\":{"+
-//                            "\"@e\":\"MG_BEFORE\"," +
-//                            "\"@uid\":" + contrib.getEntityBefore().getUserId() + "," +
-//                            "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-//                            "\"@vS\":" + contrib.getEntityBefore().getTimestamp().getRawUnixTimestamp() + "," +
-//                            "\"@vU\":" + contrib.getTimestamp().getRawUnixTimestamp() + "}," +
-//                            "\"geometry\":" + writer.write(before) + "}\n" +
-
-                            "{\"type\":\"Feature\",\"properties\":{"+
-                            "\"@e\":\"MG\"," + sq +
-                            "\"@c\":" + contrib.getChangesetId() +","+
-                            "\"@uid\":" + contrib.getContributorUserId() + "," +
-                            "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                            "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
-                            "\"@vU\":" + ( (oneLater == 0) ? null : oneLater )+ "}," +
-                            "\"geometry\":" + writer.write(after) + "}\n";
+            return "\"@e\":\"MG\"," + sq;
         }else{
             return "";
+        }
+    }
+
+
+
+
+    public static String getGeometryString(OSMContribution contrib){
+        GeoJsonWriter writer = new GeoJsonWriter(18);
+        writer.setEncodeCRS(false);
+
+        //Put a safety lookup here to ensure it returns valid Geometries
+
+        if ( contrib.getContributionTypes().contains(ContributionType.DELETION) ){
+            return writer.write( contrib.getGeometryUnclippedBefore());
+        }else{
+            return writer.write( contrib.getGeometryUnclippedAfter());
         }
     }
 
