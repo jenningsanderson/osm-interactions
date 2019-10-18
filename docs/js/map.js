@@ -20,119 +20,20 @@ map.addControl(new mapboxgl.NavigationControl());
 //This kicks off everything
 map.once('load',function(){
 
-  // This is for all the companies
-
   //This is for debugging locally
 
-  map.addSource("interactions-source-nepal",{
-    type: 'vector',
-    tiles: [
-      'http://localhost:4000/nepal_buildings.mbtiles/{z}/{x}/{y}.pbf'
-    ],
-    maxzoom: 15
-  })
-
-  map.addLayer({
-    "id": "buildings-MV-BEFORE",
-    "type": "fill",
-    'source': 'interactions-source-nepal',
-    'source-layer':'tmp',
-    'filter':['==','@edit','MV_BEFORE'],
-    "paint": {
-      'fill-color':'purple',
-      'fill-opacity':0.5
-    }
-  })
-
-  map.addLayer({
-    "id": "buildings-MV-AFTER",
-    "type": "fill",
-    'source': 'interactions-source-nepal',
-    'source-layer':'tmp',
-    'filter':['==','@edit','MV_AFTER'],
-    "paint": {
-      'fill-color':'orange',
-      'fill-opacity':0.5
-    }
-  })
-
-
-  map.addLayer({
-    "id": "buildings-DELETED",
-    "type": "fill",
-    'source': 'interactions-source-nepal',
-    'source-layer':'tmp',
-    'filter':['==','@edit','DELETION'],
-    "paint": {
-      'fill-color':'red',
-      'fill-opacity':0.5
-    }
-  })
-
-  map.addLayer({
-    "id": "heatmap",
-    "type": "heatmap",
-    "source": "interactions-source-nepal",
-    "source-layer": "tmp",
-    "maxzoom": 9,
-    "minzoom": 2,
-    "paint": {
-      "heatmap-intensity": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        0, 1,
-        9, 3
-        ],
-      "heatmap-color": [
-        "interpolate",
-        ["linear"],
-        ["heatmap-density"],
-        0, "rgba(33,102,172,0)",
-        0.2, "rgb(103,169,207)",
-        0.4, "rgb(209,229,240)",
-        0.6, "rgb(253,219,199)",
-        0.8, "rgb(239,138,98)",
-        1, "rgb(178,24,43)"
-      ],
-      // Adjust the heatmap radius by zoom level
-      "heatmap-radius": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        0, 2,
-        9, 20
-      ],
-      // Transition from heatmap to circle layer by zoom level
-      "heatmap-opacity": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        7, 1,
-        9, 0
-      ],
-    }
-  }, 'waterway-label');
-
-
-
-
-
-/// nepal
-
-
-
-  //
-  // map.addSource('interactions-source-ghana',{
-  //   type:'vector',
-  //   url: 'mapbox://jenningsanderson.31401mos',
+  // map.addSource("interactions-source-nepal",{
+  //   type: 'vector',
+  //   tiles: [
+  //     'http://localhost:4000/nepal_buildings.mbtiles/{z}/{x}/{y}.pbf'
+  //   ],
   //   maxzoom: 15
   // })
-  //
+
   // map.addLayer({
   //   "id": "buildings-MV-BEFORE",
   //   "type": "fill",
-  //   'source': 'interactions-source-ghana',
+  //   'source': 'interactions-source-nepal',
   //   'source-layer':'tmp',
   //   'filter':['==','@edit','MV_BEFORE'],
   //   "paint": {
@@ -140,11 +41,11 @@ map.once('load',function(){
   //     'fill-opacity':0.5
   //   }
   // })
-  //
+
   // map.addLayer({
   //   "id": "buildings-MV-AFTER",
   //   "type": "fill",
-  //   'source': 'interactions-source-ghana',
+  //   'source': 'interactions-source-nepal',
   //   'source-layer':'tmp',
   //   'filter':['==','@edit','MV_AFTER'],
   //   "paint": {
@@ -152,11 +53,12 @@ map.once('load',function(){
   //     'fill-opacity':0.5
   //   }
   // })
-  //
+
+
   // map.addLayer({
   //   "id": "buildings-DELETED",
   //   "type": "fill",
-  //   'source': 'interactions-source-ghana',
+  //   'source': 'interactions-source-nepal',
   //   'source-layer':'tmp',
   //   'filter':['==','@edit','DELETION'],
   //   "paint": {
@@ -164,11 +66,11 @@ map.once('load',function(){
   //     'fill-opacity':0.5
   //   }
   // })
-  //
+
   // map.addLayer({
   //   "id": "heatmap",
   //   "type": "heatmap",
-  //   "source": "interactions-source-ghana",
+  //   "source": "interactions-source-nepal",
   //   "source-layer": "tmp",
   //   "maxzoom": 9,
   //   "minzoom": 2,
@@ -209,6 +111,102 @@ map.once('load',function(){
   //     ],
   //   }
   // }, 'waterway-label');
+
+
+
+
+
+/// nepal
+
+
+
+  
+  map.addSource('interactions-source-ghana',{
+    type:'vector',
+    url: 'mapbox://jenningsanderson.31401mos',
+    maxzoom: 15
+  })
+  
+  map.addLayer({
+    "id": "buildings-MV-BEFORE",
+    "type": "fill",
+    'source': 'interactions-source-ghana',
+    'source-layer':'tmp',
+    'filter':['==','@edit','MV_BEFORE'],
+    "paint": {
+      'fill-color':'purple',
+      'fill-opacity':0.5
+    }
+  })
+  
+  map.addLayer({
+    "id": "buildings-MV-AFTER",
+    "type": "fill",
+    'source': 'interactions-source-ghana',
+    'source-layer':'tmp',
+    'filter':['==','@edit','MV_AFTER'],
+    "paint": {
+      'fill-color':'orange',
+      'fill-opacity':0.5
+    }
+  })
+  
+  map.addLayer({
+    "id": "buildings-DELETED",
+    "type": "fill",
+    'source': 'interactions-source-ghana',
+    'source-layer':'tmp',
+    'filter':['==','@edit','DELETION'],
+    "paint": {
+      'fill-color':'red',
+      'fill-opacity':0.5
+    }
+  })
+  
+  map.addLayer({
+    "id": "heatmap",
+    "type": "heatmap",
+    "source": "interactions-source-ghana",
+    "source-layer": "tmp",
+    "maxzoom": 9,
+    "minzoom": 2,
+    "paint": {
+      "heatmap-intensity": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        0, 1,
+        9, 3
+        ],
+      "heatmap-color": [
+        "interpolate",
+        ["linear"],
+        ["heatmap-density"],
+        0, "rgba(33,102,172,0)",
+        0.2, "rgb(103,169,207)",
+        0.4, "rgb(209,229,240)",
+        0.6, "rgb(253,219,199)",
+        0.8, "rgb(239,138,98)",
+        1, "rgb(178,24,43)"
+      ],
+      // Adjust the heatmap radius by zoom level
+      "heatmap-radius": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        0, 2,
+        9, 20
+      ],
+      // Transition from heatmap to circle layer by zoom level
+      "heatmap-opacity": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        7, 1,
+        9, 0
+      ],
+    }
+  }, 'waterway-label');
 
   document.getElementById('loading').style.display = 'none';
 
