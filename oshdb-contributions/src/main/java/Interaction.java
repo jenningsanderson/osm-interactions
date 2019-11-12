@@ -1,4 +1,3 @@
-import org.heigit.bigspatialdata.oshdb.InteractionsBuilder;
 import org.heigit.bigspatialdata.oshdb.api.object.OSMContribution;
 import org.heigit.bigspatialdata.oshdb.util.celliterator.ContributionType;
 import org.locationtech.jts.geom.Coordinate;
@@ -41,7 +40,7 @@ public class Interaction {
                     "\"@duid\":" + thisContribution.getEntityBefore().getUserId();
         } else if (thisContribution.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE)) {
             if (yieldsMinorVersion(thisContribution)) {
-                return "\"@e\":\"MV\";
+                return "\"@e\":\"MV\"";
             }else{
                 return "";//not a minor version
             }
