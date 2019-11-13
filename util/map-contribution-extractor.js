@@ -178,7 +178,7 @@ module.exports = function(data, tile, writeData, done) {
 
                   //a few enhanced attributes that might matter (from qa-tiles-plus)
                   'r': (feature.properties.hasOwnProperty('@tr')? true : undefined),
-                  'h': (feature.properties.hasOwnProperty('highway')? feature.properties['highway'] : undefined),
+                  'hw': (feature.properties.hasOwnProperty('highway')? feature.properties['highway'] : undefined),
                   'b': (feature.properties.hasOwnProperty('building')? feature.properties['building'] : undefined),
                   'n': (feature.properties.hasOwnProperty('name')? feature.properties['name'] : undefined),
                   'l': length,
