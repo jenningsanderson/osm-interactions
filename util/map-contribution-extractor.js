@@ -11,8 +11,6 @@ try{
   process.exit(1)
 }
 
-
-// TODO: This shouldn't need to be changed too much between packages
 var contributors  = require(CONFIG.editors)
 
 // Unfortunately it might be easier to calculate some of these challenges at the tile level
@@ -28,8 +26,7 @@ function countKM(features){
         totalKM +=  turf.lineDistance(f)
       }
     }catch(e){
-        console.warn("countKMFail")
-        console.warn(e)
+        console.warn("countKMFail: ", e.message)
     }
   })
   return totalKM;
@@ -43,8 +40,7 @@ function countBuildings(features){
         totalBuildings++
       }
     }catch(e){
-        console.warn("countBuildingFail")
-        console.warn(e)
+        console.warn("countBuildingFail: ", e.message)
     }
   })
   return totalBuildings;
@@ -61,8 +57,7 @@ function countPOIs(features){
         }
       }
     }catch(e){
-        console.warn("countPOIFail")
-        console.warn("e")
+        console.warn("countPOIFail: ", e.message)
     }
   });
   return totalPOIs
@@ -153,30 +148,41 @@ module.exports = function(data, tile, writeData, done) {
 
       //If not everything was filtered out...
       if (teamUIDs[uid].length){
+        
         //Iterate through all of this user's edits
         teamUIDs[uid].forEach(function(feature){
+
           //Write out the actual geometry first
+          var length = undefined;
+            
+          try{
+            length = turf.length(feature, {'units':'kilometers'})
+          }catch(e){
+            console.warn("FAILED TURF.length on feat: ", JSON.stringify(feature))
+          }
+            
           writeData(JSON.stringify({
                 'type':'Feature',
                 'geometry':feature.geometry,
                 'properties':{
                   //user & team meta
-                  'u': uid,
+                  'u': Number(uid),
                   'h': feature.properties['@user'],
                   'c': teamName,
 
                   //standard qa-metadata
                   't': feature.properties['@timestamp'],
                   '@c': feature.properties['@changeset'],
-                  '@i': feature.properties['@id'],
-                  '@v': feature.properties['@version'],
+                  'i': feature.properties['@id'],
+                  'v': feature.properties['@version'],
 
                   //a few enhanced attributes that might matter (from qa-tiles-plus)
                   'r': (feature.properties.hasOwnProperty('@tr')? true : undefined),
                   'h': (feature.properties.hasOwnProperty('highway')? feature.properties['highway'] : undefined),
                   'b': (feature.properties.hasOwnProperty('building')? feature.properties['building'] : undefined),
                   'n': (feature.properties.hasOwnProperty('name')? feature.properties['name'] : undefined),
-                  'l': turf.length(feature, {'units':'kilometers'}) || false,
+                  'l': length,
+                  'q': "q"+ thisTile
                 },
                 'tippecanoe':{
                   'layer':'objects',
@@ -186,29 +192,37 @@ module.exports = function(data, tile, writeData, done) {
           })+"\n")
         });
 
-        //Also write out a tile-level summary for this particular user:
-        try{
-          var center = turf.centroid({
-            'type':'GeometryCollection',
-            'geometries': teamUIDs[uid].map(function(f){return f.geometry})
-          })
-        }catch(e){
-          console.warn("FAILED TURF.CENTROID | with feat count: ",teamUIDs[uid].length)
-          var center = {'properties':{}}
-        }
+        //Also write out a per-day, per-tile summary for this particular user:
+        var gbUserDay = _.groupBy(teamUIDs[uid], function(feat){
+          return Math.floor(feat.properties['@timestamp']/86400)
+        });
+        var handle = teamUIDs[uid][0].properties['@user'];
+            
+        Object.keys(gbUserDay).forEach(function(day){
+          try{
+            var dailyCenter = turf.centerOfMass({
+              'type':'GeometryCollection',
+              'geometries': gbUserDay[day].map(function(f){return f.geometry})
+            })
+          }catch(e){
+            console.warn("FAILED TURF.centerOfMass | with feat count: ",teamUIDs[uid].length)
+            var dailyCenter = {'properties':{}}
+          }
 
-        center.properties['h'] = teamUIDs[uid][0].properties['@user']
-        center.properties['u'] = uid
-        center.properties['e'] = teamUIDs[uid].length
-        center.properties['c'] = teamName
-        center.properties['t'] = Math.floor(_.mean(teamUIDs[uid].map(function(f){return f.properties['@timestamp']})))
+          dailyCenter.properties['h'] = handle
+          dailyCenter.properties['u'] = Number(uid)
+          dailyCenter.properties['e'] = gbUserDay[day].length
+          dailyCenter.properties['c'] = teamName
+          dailyCenter.properties['t'] = Number(day)*86400;
+          dailyCenter.properties['q'] = "q"+ thisTile
 
-        center['tippecanoe'] = {
+          dailyCenter['tippecanoe'] = {
             'minzoom': 1,
             'maxzoom': 12,
-            'layer'  : 'userPointSummaries'
-        }
-        writeData(JSON.stringify(center)+"\n");
+            'layer'  : 'userDailyPointSummaries'
+          }
+          writeData(JSON.stringify(dailyCenter)+"\n");
+        });
 
         //Store for full summary?
         teamEdits = teamEdits.concat(teamUIDs[uid]);
@@ -248,14 +262,14 @@ module.exports = function(data, tile, writeData, done) {
         'minzoom': 8,
         'maxzoom': 11
       }
-
+        
+      center.properties['c']     = teamName;
       center.properties['e']     = dailyEdits;
       center.properties['b']     = dailyBuildings;
       center.properties['km']    = dailyKM;
       center.properties['p']     = dailyPOIs;
-      center.properties['d']     = Number(day)*86400;
-      center.properties['c']     = teamName;
-      center.properties['tile']  = 'q' + thisTile;
+      center.properties['t']     = Number(day)*86400;    
+      center.properties['q']     = 'q' + thisTile;
 
       writeData(JSON.stringify(center)+"\n")
     })
@@ -277,15 +291,25 @@ module.exports = function(data, tile, writeData, done) {
   }
 
   Object.keys(teamTileTotals).forEach(function(team){
-    totals.properties[team+"-km"] = teamTileTotals[team].km
-    totals.properties[team+"-b"]  = teamTileTotals[team].buildings
-    totals.properties[team+"-p"]  = teamTileTotals[team].pois
-    totals.properties[team+"-e"]  = teamTileTotals[team].features
+    if (teamTileTotals[team].km > 0){
+      totals.properties[team+"-km"] = teamTileTotals[team].km
+      totals.properties['teamSumKM']       += teamTileTotals[team].km
+    }  
 
-    totals.properties['teamSumFeatures'] += teamTileTotals[team].features
-    totals.properties['teamSumKM']       += teamTileTotals[team].km
-    totals.properties['teamSumBuildings']+= teamTileTotals[team].buildings
-    totals.properties['teamSumPOIs']     += teamTileTotals[team].pois
+    if (teamTileTotals[team].buildings > 0){
+      totals.properties[team+"-b"]  = teamTileTotals[team].buildings
+      totals.properties['teamSumBuildings']+= teamTileTotals[team].buildings
+    }
+
+    if (teamTileTotals[team].pois > 0){
+      totals.properties[team+"-p"]  = teamTileTotals[team].pois
+      totals.properties['teamSumPOIs']     += teamTileTotals[team].pois
+    }
+
+    if (teamTileTotals[team].features > 0){
+      totals.properties[team+"-e"]  = teamTileTotals[team].features 
+      totals.properties['teamSumFeatures'] += teamTileTotals[team].features
+    }
   })
 
   totals.tippecanoe = {
