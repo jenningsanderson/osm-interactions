@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/jenningsanderson/osm-interactions#readme",
   "dependencies": {
+    "@mapbox/tile-reduce": "^3.3.0",
     "@turf/turf": "^5.1.6",
     "fast-csv": "^3.4.0",
     "json-stream-reduce": "^1.0.1"
