@@ -21,6 +21,7 @@
   "homepage": "https://github.com/jenningsanderson/osm-interactions#readme",
   "dependencies": {
     "@turf/turf": "^5.1.6",
+    "csv-parse": "^4.8.3",
     "fast-csv": "^3.4.0",
     "json-stream-reduce": "^1.0.1"
   }
