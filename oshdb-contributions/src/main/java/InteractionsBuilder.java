@@ -62,8 +62,8 @@ public class InteractionsBuilder {
             TagTranslator tagTranslator = new TagTranslator(oshdb.getConnection());
 
             //Turn on parallelization
-//            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
-            Stream<Integer> result = OSMContributionView.on(oshdb)
+            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
+//            Stream<Integer> result = OSMContributionView.on(oshdb)
 //                    .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
 //                    .areaOfInterest(new OSHDBBoundingBox(26.1152, -44.5023, 26.1154, 44.5024))
 //                    .areaOfInterest(new OSHDBBoundingBox(-1.763966, -1.609479, 6.298851, 6.298851))
@@ -72,8 +72,8 @@ public class InteractionsBuilder {
 //                    .areaOfInterest(new OSHDBBoundingBox(83.9769,28.2122478921, 83.9805663895, 28.2146488456)) // Tiny Pokhara
 //                    .areaOfInterest(new OSHDBBoundingBox(-23.0,-48.4, 157.8, 37.8)) // most of the world... no euro and no na
 //                    .timestamps("2005-04-25T00:00:00Z", "2008-01-01T00:00:00Z")
-                    .osmType(OSMType.NODE)
-//                    .osmTag()
+                    .osmType(OSMType.WAY)
+//                    .osmTag("highway")
                     .groupByEntity()
                     .map(contribs -> {
 

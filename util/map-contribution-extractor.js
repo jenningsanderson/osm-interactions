@@ -148,19 +148,19 @@ module.exports = function(data, tile, writeData, done) {
 
       //If not everything was filtered out...
       if (teamUIDs[uid].length){
-        
+
         //Iterate through all of this user's edits
         teamUIDs[uid].forEach(function(feature){
 
           //Write out the actual geometry first
           var length = undefined;
-            
+
           try{
             length = turf.length(feature, {'units':'kilometers'})
           }catch(e){
             console.warn("FAILED TURF.length on feat: ", JSON.stringify(feature))
           }
-            
+
           writeData(JSON.stringify({
                 'type':'Feature',
                 'geometry':feature.geometry,
@@ -197,7 +197,7 @@ module.exports = function(data, tile, writeData, done) {
           return Math.floor(feat.properties['@timestamp']/86400)
         });
         var handle = teamUIDs[uid][0].properties['@user'];
-            
+
         Object.keys(gbUserDay).forEach(function(day){
           try{
             var dailyCenter = turf.centerOfMass({
@@ -262,13 +262,13 @@ module.exports = function(data, tile, writeData, done) {
         'minzoom': 8,
         'maxzoom': 11
       }
-        
+
       center.properties['c']     = teamName;
       center.properties['e']     = dailyEdits;
       center.properties['b']     = dailyBuildings;
       center.properties['km']    = dailyKM;
       center.properties['p']     = dailyPOIs;
-      center.properties['t']     = Number(day)*86400;    
+      center.properties['t']     = Number(day)*86400;
       center.properties['q']     = 'q' + thisTile;
 
       writeData(JSON.stringify(center)+"\n")
@@ -294,7 +294,7 @@ module.exports = function(data, tile, writeData, done) {
     if (teamTileTotals[team].km > 0){
       totals.properties[team+"-km"] = teamTileTotals[team].km
       totals.properties['teamSumKM']       += teamTileTotals[team].km
-    }  
+    }
 
     if (teamTileTotals[team].buildings > 0){
       totals.properties[team+"-b"]  = teamTileTotals[team].buildings
@@ -307,7 +307,7 @@ module.exports = function(data, tile, writeData, done) {
     }
 
     if (teamTileTotals[team].features > 0){
-      totals.properties[team+"-e"]  = teamTileTotals[team].features 
+      totals.properties[team+"-e"]  = teamTileTotals[team].features
       totals.properties['teamSumFeatures'] += teamTileTotals[team].features
     }
   })
