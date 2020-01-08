@@ -14,7 +14,7 @@ const HEADERS = ["id","tags","created_at","min_lat","max_lat","min_lon","max_lon
 
 streamReduce({
   map: path.join(__dirname, 'map-changeset-parser.js'),
-  file: path.join(__dirname, '../../data/changesets_2015.csv'),
+  file: path.join(__dirname, '../../data/changesets_2019.csv'),
 //   file: path.join(__dirname, 'ghana_changesets.csv'),
   mapOptions: {
       headers: HEADERS,

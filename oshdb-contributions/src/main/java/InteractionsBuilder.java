@@ -54,6 +54,8 @@ public class InteractionsBuilder {
 //            System.err.println("Please specify a database")
 //        }
 
+
+
         Path h2Path = Paths.get("~/data/oshdb/history-october2019.oshdb.mv.db");
 //        Path h2Path = Paths.get("/Users/jenningsanderson/Desktop/foss4g_2019_ro_buce.oshdb.mv.db");
         try(OSHDBH2 oshdb = new OSHDBH2(h2Path.toString())){
@@ -65,13 +67,13 @@ public class InteractionsBuilder {
 //                    .areaOfInterest(new OSHDBBoundingBox(-180.0, -90.0, 180.0, 90))
 //                    .areaOfInterest(new OSHDBBoundingBox(26.1152, -44.5023, 26.1154, 44.5024))
 //                    .areaOfInterest(new OSHDBBoundingBox(-1.763966, -1.609479, 6.298851, 6.298851))
-//                    .areaOfInterest(new OSHDBBoundingBox(83.951151,28.181861, 84.024995, 28.241129)) // Pokhara, Nepal
+                    .areaOfInterest(new OSHDBBoundingBox(83.951151,28.181861, 84.024995, 28.241129)) // Pokhara, Nepal
                   //westlimit=; southlimit=; eastlimit=; northlimit=
 //                    .areaOfInterest(new OSHDBBoundingBox(83.9769,28.2122478921, 83.9805663895, 28.2146488456)) // Tiny Pokhara
 //                    .areaOfInterest(new OSHDBBoundingBox(-23.0,-48.4, 157.8, 37.8)) // most of the world... no euro and no na
 //                    .timestamps("2005-04-25T00:00:00Z", "2008-01-01T00:00:00Z")
-                    .osmType(OSMType.WAY)
-//                    .osmTag("building")
+                    .osmType(OSMType.NODE)
+//                    .osmTag()
                     .groupByEntity()
                     .map(contribs -> {
 
@@ -81,174 +83,200 @@ public class InteractionsBuilder {
                         int minorVersionValue = 0;
                         long oneLaterContribTime = 0;
 
+                        try {
 
-                        for( OSMContribution contrib : contribs) {
+                            for (OSMContribution contrib : contribs) {
 
-//                            Interaction thisINteraction = Interaction(enhancedContrib
+                                String contribPropertyString = "";
+                                String geometryString = getGeometryString(contrib);
 
-                            String contribPropertyString = "";
-                            String geometryString        = getGeometryString(contrib);
+                                //A safety so that we don't get empty geometries...
+                                if (!geometryString.equals("")) {
 
-                            //A safety so that we don't get empty geometries...
-                            if ( !geometryString.equals("") ){
+                                    OSMEntity before = contrib.getEntityBefore();
+                                    OSMEntity after = contrib.getEntityAfter();
 
-
-                                OSMEntity before = contrib.getEntityBefore();
-                                OSMEntity after = contrib.getEntityAfter();
-
-                                //If there is another contribution after this one, get that value.
-                                if (idx==contribs.size()-1){
-                                    oneLaterContribTime = 0;
-                                }else if (contribs.size() > (idx+1)){
-                                    oneLaterContribTime = contribs.get(idx+1).getTimestamp().getRawUnixTimestamp();
-                                }
-
-                                //                            if (contrib.getOSHEntity().getId()==341930865) {
-                                //                                System.out.println(""+idx + "" + contrib.getEntityAfter().getVersion()+ " | " + oneLaterContribTime);
-                                //                            }
-
-                                if ( contrib.getContributionTypes().contains(ContributionType.CREATION) ){
-                                    NEW_OBJECTS++;
-                                    //                                majorVersionUIDs.add(contrib.getContributorUserId());
-
-                                    try{
-                                        contribPropertyString = creation(contrib);
-                                    }catch (Exception e){
-                                        System.err.println("CREATION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
-                                        e.printStackTrace();
+                                    //If there is another contribution after this one, get that value.
+                                    if (idx == contribs.size() - 1) {
+                                        oneLaterContribTime = 0;
+                                    } else if (contribs.size() > (idx + 1)) {
+                                        oneLaterContribTime = contribs.get(idx + 1).getTimestamp().getRawUnixTimestamp();
                                     }
 
-                                } else if ( contrib.getContributionTypes().contains(ContributionType.DELETION) ) {
-                                    DELETED_OBJECTS++;
-                                    //                                majorVersionUIDs.add(contrib.getContributorUserId());
+                                    if (contrib.getContributionTypes().contains(ContributionType.CREATION)) {
+                                        NEW_OBJECTS++;
 
-                                    try {
-                                        contribPropertyString = deletion(contrib);
-                                    } catch (Exception e) {
-                                        System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
-                                    }
+                                        try {
+                                            contribPropertyString = creation(contrib);
 
-                                } else if (before.getVersion() == after.getVersion()) {
+                                            Map<String, String> createdTags = new HashMap<String, String>();
 
-                                    //If the version numbers are the same, then we have a potential minor version
-                                    try{
-                                        if (yieldsMinorVersion(contrib)) {
-                                            minorVersionValue++;
-                                            MINOR_VERSION_CHANGE++;
-                                            //                                        mVUIDs.add(contrib.getContributorUserId());
-                                            contribPropertyString = minorVersion(contrib, minorVersionValue);
-                                        }
-
-                                    } catch (Exception e) {
-                                        System.err.println("UNKNOWN ERROR ON OBJECT: :" + contrib.getOSHEntity());
-                                    }
-
-                                } else {
-                                    //It's a major version, so reset the mV counter
-                                    minorVersionValue = 0;
-                                    // These are visible updates to the object that are visible on the map with versioning
-                                    UPDATED_OBJECTS++;
-                                    //      majorVersionUIDs.add(contrib.getContributorUserId());
-
-                                    if ( contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE) ){
-                                        // TODO: A tag change, what are some major tag changes we care about?
-
-                                        Map<String, String> beforeTags = new HashMap<String, String>();
-
-                                        Map<String, String>   newTags = new HashMap<String, String>();
-                                        Map<String, String[]> modTags = new HashMap<String, String[]>();
-                                        Map<String, String>   delTags = new HashMap<String, String>();
-
-                                        //Create a Map for Comparison
-                                        for (OSHDBTag tag : before.getTags()) {
-                                            try{
-                                                OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                                beforeTags.put(translated.getKey(), translated.getValue());
-                                            }catch(Exception OSHDBTagOrRoleNotFoundException){
-                                            }
-                                        }
-
-                                        for (OSHDBTag tag : after.getTags()) {
-
-                                            try{
-
-                                                OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                                String strKey = translated.getKey();
-                                                String strVal = translated.getValue();
-
-                                                if ( beforeTags.containsKey(strKey) ){
-                                                    if ( beforeTags.get(strKey).contentEquals(strVal) ){
-                                                        //There is no change
-                                                    }else{
-                                                        //This is a modified tag
-                                                        String[] mod = {beforeTags.get(strKey), strVal };
-                                                        modTags.put(strKey, mod);
-                                                    }
-
-                                                    //Remove this tag.
-                                                    beforeTags.remove(strKey);
-
-                                                }else{
-                                                    //This might be a new key with the same value? TODO?
-                                                    //This is a new tag
-                                                    newTags.put( strKey,  strVal);
+                                            //Get the tags
+                                            for (OSHDBTag tag : contrib.getEntityAfter().getTags()) {
+                                                try {
+                                                    OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                                                    createdTags.put(translated.getKey(), translated.getValue());
+                                                } catch (Exception tagError) {
+                                                    System.out.println("TagError");
                                                 }
-                                            }catch(Exception OSHDBTagOrRoleNotFoundException){
+                                            }
+
+                                            if (!createdTags.isEmpty()) {
+                                                contribPropertyString += "\"@aA\":" + JSON.toJSONString(createdTags) + ",";
+                                            }
+
+                                        } catch (Exception e) {
+                                            System.err.println("CREATION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                            e.printStackTrace();
+                                        }
+
+                                    } else if (contrib.getContributionTypes().contains(ContributionType.DELETION)) {
+                                        DELETED_OBJECTS++;
+
+                                        try {
+                                            contribPropertyString = deletion(contrib);
+
+                                            Map<String, String> deletedTags = new HashMap<String, String>();
+
+                                            for (OSHDBTag tag : contrib.getEntityBefore().getTags()) {
+                                                try {
+                                                    OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                                                    deletedTags.put(translated.getKey(), translated.getValue());
+                                                } catch (Exception tagError) {
+                                                    System.out.println("TagError");
+                                                }
+                                            }
+
+                                            if (!deletedTags.isEmpty()) {
+                                                contribPropertyString += "\"@aD\":" + JSON.toJSONString(deletedTags) + ",";
+                                            }
+
+                                        } catch (Exception e) {
+                                            System.err.println("DELETION COMPUTATION ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                        }
+
+                                    } else if (before.getVersion() == after.getVersion()) {
+
+                                        //If the version numbers are the same, then we have a potential minor version
+                                        try {
+                                            if (yieldsMinorVersion(contrib)) {
+                                                minorVersionValue++;
+                                                MINOR_VERSION_CHANGE++;
+
+                                                contribPropertyString = minorVersion(contrib, minorVersionValue);
+                                            }
+
+                                        } catch (Exception e) {
+                                            System.err.println("UNKNOWN ERROR ON OBJECT: :" + contrib.getOSHEntity());
+                                        }
+
+                                    } else {
+                                        //It's a major version, so reset the mV counter; the mV counter only works if we're starting at t0
+                                        minorVersionValue = 0;
+
+                                        // These are visible updates to the object that are visible on the map with versioning
+                                        UPDATED_OBJECTS++;
+
+                                        if (contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE)) {
+                                            // TODO: A tag change, what are some major tag changes we care about?
+
+                                            Map<String, String> beforeTags = new HashMap<String, String>();
+
+                                            Map<String, String> newTags = new HashMap<String, String>();
+                                            Map<String, String[]> modTags = new HashMap<String, String[]>();
+                                            Map<String, String> delTags = new HashMap<String, String>();
+
+                                            //Create a Map for Comparison
+                                            for (OSHDBTag tag : before.getTags()) {
+                                                try {
+                                                    OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                                                    beforeTags.put(translated.getKey(), translated.getValue());
+                                                } catch (Exception tagError) {
+//                                                    System.out.println("TagError");
+                                                }
+                                            }
+
+                                            for (OSHDBTag tag : after.getTags()) {
+
+                                                try {
+
+                                                    OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                                                    String strKey = translated.getKey();
+                                                    String strVal = translated.getValue();
+
+                                                    if (beforeTags.containsKey(strKey)) {
+                                                        if (beforeTags.get(strKey).contentEquals(strVal)) {
+                                                            //There is no change
+                                                        } else {
+                                                            //This is a modified tag
+                                                            String[] mod = {beforeTags.get(strKey), strVal};
+                                                            modTags.put(strKey, mod);
+                                                        }
+
+                                                        //Remove this tag.
+                                                        beforeTags.remove(strKey);
+
+                                                    } else {
+                                                        //This is a new tag. In a weird case, this could be same value with new key; TODO?
+                                                        newTags.put(strKey, strVal);
+                                                    }
+                                                } catch (Exception OSHDBTagOrRoleNotFoundException) {
+                                                }
+                                            }
+                                            if (!beforeTags.isEmpty()) {
+                                                delTags = beforeTags;
+                                            }
+
+                                            if (!newTags.isEmpty()) {
+                                                contribPropertyString += "\"@aA\":" + JSON.toJSONString(newTags) + ",";
+                                            }
+                                            if (!modTags.isEmpty()) {
+                                                contribPropertyString += "\"@aM\":" + JSON.toJSONString(modTags) + ",";
+                                            }
+                                            if (!delTags.isEmpty()) {
+                                                contribPropertyString += "\"@aD\":" + JSON.toJSONString(delTags) + ",";
+                                            }
+
+                                        }
+                                        if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE)) {
+
+                                            try {
+                                                contribPropertyString += majorGeometry(contrib);
+                                            } catch (Exception e) {
+                                                System.err.println("Major Geometry Change Failure: " + contrib.getOSHEntity());
                                             }
                                         }
-                                        if (!beforeTags.isEmpty()){
-                                            delTags = beforeTags;
-                                        }
-
-                                        if ( !newTags.isEmpty() ){
-                                            contribPropertyString += "\"@aA\":" + JSON.toJSONString(newTags) + ",";
-                                        }
-                                        if ( !modTags.isEmpty() ){
-                                            contribPropertyString += "\"@aM\":" + JSON.toJSONString(modTags) + ",";
-                                        }
-                                        if ( !delTags.isEmpty() ){
-                                            contribPropertyString += "\"@aD\":" + JSON.toJSONString(delTags) + ",";
-                                        }
-
-//                                        contribPropertyString += "\"@TC\":true,";
-
-                                    } if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE )){
-
-                                        try{
-                                            contribPropertyString += majorGeometry(contrib);
-                                        } catch (Exception e) {
-                                            System.err.println("Major Geometry Change Failure: " + contrib.getOSHEntity());
-                                        }
                                     }
+
+                                    if (PRINT && !contribPropertyString.equals("")) {
+
+                                        System.out.println("{\"type\":\"Feature\",\"properties\":{" +
+
+                                                //add properties here
+                                                contribPropertyString +
+
+                                                "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
+                                                "\"@vU\":" + ((oneLaterContribTime == 0) ? null : oneLaterContribTime) + "," +
+                                                "\"@uid\":" + contrib.getContributorUserId() + "," +
+                                                "\"@id\":" + contrib.getOSHEntity().getId() + "," +
+                                                "\"@c\":" + contrib.getChangesetId() +
+                                                "}," +
+                                                "\"geometry\":" + geometryString + "}");
+                                    }
+
+                                    oneLaterContribTime = contrib.getTimestamp().getRawUnixTimestamp();
+                                    idx++;
+
                                 }
-
-                                if( PRINT && !contribPropertyString.equals("") ){
-
-
-                                    System.out.println( "{\"type\":\"Feature\",\"properties\":{"+
-
-                                            //add properties here
-                                            contribPropertyString +
-
-                                            "\"@vS\":" + contrib.getTimestamp().getRawUnixTimestamp() + "," +
-                                            "\"@vU\":" + ( (oneLaterContribTime == 0) ? null : oneLaterContribTime ) + "," +
-                                            "\"@uid\":" + contrib.getContributorUserId() + "," +
-                                            "\"@id\":" + contrib.getOSHEntity().getId() + "," +
-                                            "\"@c\":" + contrib.getChangesetId() +
-                                            //                                enhancedContrib.get
-                                            "}," +
-                                            "\"geometry\":" + geometryString + "}");
-                                }
-
-                                oneLaterContribTime = contrib.getTimestamp().getRawUnixTimestamp();
-                                idx++;
 
                             }
 
+                        }catch(Exception anyError){
+                            System.out.println("fail");
                         }
+
                         //need to actually return something here
                         return idx+1;
-
                     }).stream();
 
             result.forEach(s -> {
@@ -284,11 +312,7 @@ public class InteractionsBuilder {
         Geometry before = contrib.getGeometryUnclippedBefore();
         Geometry after  = contrib.getGeometryUnclippedAfter();
 
-        if (! before.equals(after) ) {
-            return true;
-        }else {
-            return false;
-        }
+        return !before.equals(after);
     }
 
     public static String creation(OSMContribution contrib){
@@ -361,7 +385,7 @@ public class InteractionsBuilder {
         if (geom.isValid() && !geom.isEmpty() ){
             return writer.write (geom);
         }else{
-            return "";
+            return "null";
         }
     }
 
