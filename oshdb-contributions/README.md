@@ -24,3 +24,12 @@ Such as a deletion:
     "geometry":{"type":"Polygon","coordinates":[[[-0.0935087,10.8503375],[-0.09347599999999999,10.8503211],[-0.0934896,10.8502949],[-0.09352239999999998,10.8503113],[-0.0935087,10.8503375]]]}}
 }
 ```
+
+### Building a Tileset with `tippecanoe`
+Once the geojson output is created, a tileset can`` be generated using [`tippecanoe`](github.com/mapbox/tippecanoe). 
+
+To generate a zoom 14 level tileset from the `buildings.geojsonseq` file: 
+
+    tippecanoe -Pf -Z14 -z14 -d18 -pf -pk -pg -ps --output=interactions.mbtiles --layer=buildings buildings.geojsonseq
+    
+Depending on the machine being used and available resources, it might be worth changing the `tmp` directory by adding `-t /home/cc/data/tmp`

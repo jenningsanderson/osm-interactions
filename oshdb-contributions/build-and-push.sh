@@ -1,1 +1,1 @@
-mvn assembly:single && scp -i ~/cuDropbox/Credentials/bare-metal.pem target/InteractionsBuilder-jar-with-dependencies.jar cc@storage.yetilabs.science:osm-interactions/oshdb-contributions/InteractionsBuilder.jar
+mvn assembly:single && scp target/InteractionsBuilder-jar-with-dependencies.jar cc@tiler.yetilabs.science:InteractionsBuilder.jar
