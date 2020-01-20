@@ -2,17 +2,18 @@ package org.heigit.bigspatialdata.oshdb;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import java.util.HashSet;
-
 import com.alibaba.fastjson.JSON;
-
-import com.google.common.collect.Sets;
-
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.MapDifference.ValueDifference;
+import com.google.common.collect.Maps;
 import org.heigit.bigspatialdata.oshdb.api.db.OSHDBH2;
 import org.heigit.bigspatialdata.oshdb.api.mapreducer.OSMContributionView;
 import org.heigit.bigspatialdata.oshdb.api.object.OSMContribution;
@@ -20,9 +21,9 @@ import org.heigit.bigspatialdata.oshdb.osm.OSMEntity;
 import org.heigit.bigspatialdata.oshdb.osm.OSMType;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBBoundingBox;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBTag;
+import org.heigit.bigspatialdata.oshdb.util.OSHDBTagKey;
 import org.heigit.bigspatialdata.oshdb.util.celliterator.ContributionType;
 import org.heigit.bigspatialdata.oshdb.util.tagtranslator.OSMTag;
-import org.heigit.bigspatialdata.oshdb.util.tagtranslator.TagTranslator;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.geojson.GeoJsonWriter;
 
@@ -45,7 +46,19 @@ public class InteractionsBuilder {
 
 //    public static HashSet<Integer> mVUIDs = new HashSet<>();
 //    public static HashSet<Integer> majorVersionUIDs = new HashSet<>();
-
+    
+    // get case insensitive tag-keys as integer set for easy checking
+    private static Set<Integer> getCaseInsensitiveKey(AdvTagTranslator tagTranslator, String key) throws SQLException{
+      final boolean caseSensitive = false;
+      
+      final Set<OSHDBTagKey> keys = tagTranslator.getOSHDBTagKeyOf(key,caseSensitive);
+      final Set<Integer> intKeys = new HashSet<>(keys.size());
+      for( OSHDBTagKey k : keys) {
+        intKeys.add(k.toInt());
+      }
+      return intKeys;
+    }
+        
     public static void main(String[] args) {
 
 //        if(args.length > 1){
@@ -54,11 +67,19 @@ public class InteractionsBuilder {
 //            System.err.println("Please specify a database")
 //        }
 
+      
+      
         Path h2Path = Paths.get("~/data/oshdb/history-latest.oshdb.mv.db");
 //        Path h2Path = Paths.get("/Users/jenningsanderson/Desktop/foss4g_2019_ro_buce.oshdb.mv.db");
-        try(OSHDBH2 oshdb = new OSHDBH2(h2Path.toString())){
-            TagTranslator tagTranslator = new TagTranslator(oshdb.getConnection());
-
+        try(OSHDBH2 oshdb = new OSHDBH2(h2Path.toString());
+            AdvTagTranslator tagTranslator = new AdvTagTranslator(oshdb.getConnection())){
+          
+            // prefetch filter tagKey sets
+            final Set<Integer> tagKeyAdminLevel =  getCaseInsensitiveKey(tagTranslator,"admin_level");
+            final Set<Integer> tagKeyNatural = getCaseInsensitiveKey(tagTranslator,"natural");
+            final Set<Integer> tagKeyRoute = getCaseInsensitiveKey(tagTranslator,"route");
+            final Set<Integer> tagKeyBoundary = getCaseInsensitiveKey(tagTranslator,"boundary");
+            
             //Turn on parallelization
             Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
 //            Stream<Integer> result = OSMContributionView.on(oshdb)
@@ -77,6 +98,34 @@ public class InteractionsBuilder {
 //                    .timestamps("2005-04-25T00:00:00Z", "2008-01-01T00:00:00Z")
 //                    .osmType(OSMType.RELATION)
 //                    .osmTag("highway")
+                    
+                    // use osmEntityFilter for filter out as early as possible unwanted entities
+                    .osmEntityFilter(osm -> {
+                      /*
+                        Check the tags on the current object to make sure that it's something
+                        relevant to our purposes
+                      */
+                      
+                      final boolean isRelation = osm.getType().equals(OSMType.RELATION);
+                      for( OSHDBTag tag : osm.getTags()) {
+                        /* Skip any administrative boundaries that are less than 1,2,3,4,5,6,7 */
+                        if(tagKeyAdminLevel.contains(tag.getKey())) {
+                            OSMTag translated = tagTranslator.getOSMTagOf(tag);
+                            if( Integer.parseInt(translated.getValue()) < 8 ) {
+                              return false;
+                            }
+                        }
+                        /* Skip natural objects... including trees, lakes, etc. */
+                        if(tagKeyNatural.contains(tag.getKey())) {
+                          return false;
+                        }
+                        /* Filter out specific relation types: routes & boundaries */
+                        if(isRelation && (tagKeyRoute.contains(tag.getKey()) || tagKeyBoundary.contains(tag.getKey()))) {
+                          return false;
+                        }
+                      }
+                      return true;
+                    })
                     .groupByEntity()
                     .map(contribs -> {
 
@@ -85,44 +134,7 @@ public class InteractionsBuilder {
                         int minorVersionValue = 0;
                         long oneLaterContribTime = 0;
 
-                        /*
-                        Check the tags on the current object to make sure that it's something
-                           relevant to our purposes
-                        */
-                        String key, value;
                         boolean keepGoing = true;
-                        for (OSHDBTag tag : contribs.get(0).getEntityAfter().getTags()) {
-                            try {
-                                OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                key = translated.getKey();
-                                value = translated.getValue();
-
-                                /* Skip any administrative boundaries that are less than 1,2,3,4,5,6,7 */
-                                if ( key.toLowerCase().contains("admin_level") ){
-                                    if (Integer.parseInt(value) < 8){
-                                        keepGoing = false;
-                                    }
-                                }
-
-                                /* Skip natural objects... including trees, lakes, etc. */
-                                if ( key.toLowerCase().contains("natural") ){
-                                    keepGoing = false;
-                                }
-
-                                /* Filter out specific relation types: routes & boundaries */
-                                if (contribs.get(0).getEntityAfter().getType().equals(OSMType.RELATION)) {
-                                    if (key.toLowerCase().contains("route")) {
-                                        keepGoing = false;
-                                    }
-                                    if (key.toLowerCase().contains("boundary")) {
-                                        keepGoing = false;
-                                    }
-                                }
-
-                            } catch (Exception tagError) {
-                                System.out.println("Tag Filtering Error");
-                            }
-                        }
 
                         if (keepGoing) {
 
@@ -151,18 +163,9 @@ public class InteractionsBuilder {
 
                                             try {
                                                 contribPropertyString = creation(contrib);
-
-                                                Map<String, String> createdTags = new HashMap<String, String>();
-
+                                                
                                                 //Get the tags
-                                                for (OSHDBTag tag : contrib.getEntityAfter().getTags()) {
-                                                    try {
-                                                        OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                                        createdTags.put(translated.getKey(), translated.getValue());
-                                                    } catch (Exception tagError) {
-                                                        System.out.println("TagError");
-                                                    }
-                                                }
+                                                Map<String, String> createdTags = tagTranslator.getTagsAsKeyValueMap(contrib.getEntityAfter().getTags());
 
                                                 if (!createdTags.isEmpty()) {
                                                     contribPropertyString += "\"@aA\":" + JSON.toJSONString(createdTags) + ",";
@@ -179,17 +182,8 @@ public class InteractionsBuilder {
                                             try {
                                                 contribPropertyString = deletion(contrib);
 
-                                                Map<String, String> deletedTags = new HashMap<String, String>();
-
-                                                for (OSHDBTag tag : contrib.getEntityBefore().getTags()) {
-                                                    try {
-                                                        OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                                        deletedTags.put(translated.getKey(), translated.getValue());
-                                                    } catch (Exception tagError) {
-                                                        System.out.println("TagError");
-                                                    }
-                                                }
-
+                                                Map<String, String> deletedTags = tagTranslator.getTagsAsKeyValueMap(contrib.getEntityBefore().getTags());
+            
                                                 if (!deletedTags.isEmpty()) {
                                                     contribPropertyString += "\"@aD\":" + JSON.toJSONString(deletedTags) + ",";
                                                 }
@@ -223,52 +217,22 @@ public class InteractionsBuilder {
                                             if (contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE)) {
                                                 // TODO: A tag change, what are some major tag changes we care about?
 
-                                                Map<String, String> beforeTags = new HashMap<String, String>();
+                                                Map<String, String> beforeTags = tagTranslator.getTagsAsKeyValueMap(before.getTags());
+                                                Map<String, String> afterTags = tagTranslator.getTagsAsKeyValueMap(after.getTags());
 
-                                                Map<String, String> newTags = new HashMap<String, String>();
+                                                Map<String, String> newTags;
                                                 Map<String, String[]> modTags = new HashMap<String, String[]>();
-                                                Map<String, String> delTags = new HashMap<String, String>();
-
-                                                //Create a Map for Comparison
-                                                for (OSHDBTag tag : before.getTags()) {
-                                                    try {
-                                                        OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                                        beforeTags.put(translated.getKey(), translated.getValue());
-                                                    } catch (Exception tagError) {
-                                                        //                                                    System.out.println("TagError");
-                                                    }
-                                                }
-
-                                                for (OSHDBTag tag : after.getTags()) {
-
-                                                    try {
-
-                                                        OSMTag translated = tagTranslator.getOSMTagOf(tag);
-                                                        String strKey = translated.getKey();
-                                                        String strVal = translated.getValue();
-
-                                                        if (beforeTags.containsKey(strKey)) {
-                                                            if (beforeTags.get(strKey).contentEquals(strVal)) {
-                                                                //There is no change
-                                                            } else {
-                                                                //This is a modified tag
-                                                                String[] mod = {beforeTags.get(strKey), strVal};
-                                                                modTags.put(strKey, mod);
-                                                            }
-
-                                                            //Remove this tag.
-                                                            beforeTags.remove(strKey);
-
-                                                        } else {
-                                                            //This is a new tag. In a weird case, this could be same value with new key; TODO?
-                                                            newTags.put(strKey, strVal);
-                                                        }
-                                                    } catch (Exception OSHDBTagOrRoleNotFoundException) {
-                                                    }
-                                                }
-                                                if (!beforeTags.isEmpty()) {
-                                                    delTags = beforeTags;
-                                                }
+                                                Map<String, String> delTags;
+                                                
+                                                MapDifference<String, String> difference = Maps.difference(beforeTags, afterTags);
+                                                
+                                                newTags = difference.entriesOnlyOnRight();
+                                                Map<String, ValueDifference<String>> diffTags = difference.entriesDiffering();
+                                                diffTags.forEach((strKey, diff) -> {
+                                                  String[] mod = {diff.leftValue(),diff.rightValue()};
+                                                  modTags.put(strKey,mod);
+                                                });
+                                                delTags = difference.entriesOnlyOnLeft();
 
                                                 if (!newTags.isEmpty()) {
                                                     contribPropertyString += "\"@aA\":" + JSON.toJSONString(newTags) + ",";
