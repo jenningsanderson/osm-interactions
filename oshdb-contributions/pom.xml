@@ -74,7 +74,7 @@
                     <appendAssemblyId>true</appendAssemblyId>
                     <archive>
                         <manifest>
-                            <mainClass>org.heigit.bigspatialdata.oshdb.InteractionsBuilder</mainClass>
+                            <mainClass>InteractionsBuilder</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

@@ -33,3 +33,4 @@ To generate a zoom 14 level tileset from the `buildings.geojsonseq` file:
     tippecanoe -Pf -Z14 -z14 -d18 -pf -pk -pg -ps --output=interactions.mbtiles --layer=buildings buildings.geojsonseq
     
 Depending on the machine being used and available resources, it might be worth changing the `tmp` directory by adding `-t /home/cc/data/tmp`
+

@@ -33,8 +33,9 @@ public class AdvTagTranslator implements AutoCloseable {
   public AdvTagTranslator(Connection conn) throws SQLException, OSHDBKeytablesNotFoundException {
     this.conn = conn;
     this.tagTranslator = new TagTranslator(conn);
+
     this.keyCaseInsensitive = conn.prepareStatement(
-        "select ID from " + TableNames.E_KEY.toString() + " where KEY.TXT ilike ? ;");
+        "SELECT ID FROM " + TableNames.E_KEY.toString() + " WHERE KEY.TXT LIKE ? ;");
   }
 
   @Override
