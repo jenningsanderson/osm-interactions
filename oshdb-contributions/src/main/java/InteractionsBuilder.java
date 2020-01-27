@@ -43,7 +43,7 @@ public class InteractionsBuilder {
 
     public static int DELETION_ERRORS = 0;
     public static int CREATION_ERRORS = 0;
-    public static int MAJ_GEOM_ERRORS = 0;
+    public static int MAV_ERRORS = 0;
     public static int TAG_ERRORS = 0;
     public static int MIN_VERSION_ERRORS = 0;
     public static int EMPTY_CONTRIBS = 0;
@@ -141,9 +141,9 @@ public class InteractionsBuilder {
             
             //Turn on parallelization
             PrintWriter finalStatusPrintWriter = statusPrintWriter;
-//            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
+            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
 
-            Stream<Integer> result = OSMContributionView.on(oshdb) //For easier debugging
+//            Stream<Integer> result = OSMContributionView.on(oshdb) //For easier debugging
 
 //                    // TODO: read GeoJSON bounds?
 //                    .areaOfInterest(new OSHDBBoundingBox(83.951151,28.181861, 84.024995, 28.241129)) // Pokhara, Nepal
@@ -163,7 +163,6 @@ public class InteractionsBuilder {
 
 //                    .areaOfInterest(new OSHDBBoundingBox(-25.6,-55, 180, 37.8)) // Africa, Australia, SE Asia
 
-
                     /* Could use any of the following filters: */
 //                    .timestamps("2005-04-25T00:00:00Z", "2008-01-01T00:00:00Z")
 //                    .osmType(OSMType.RELATION)
@@ -172,7 +171,7 @@ public class InteractionsBuilder {
                     // use osmEntityFilter for filter out as early as possible unwanted entities
                     .osmEntityFilter(osm -> {
 
-//                        if(osm.getId() == 425279543){
+//                        if(osm.getId() == 193450525){
 //                            return true;
 //                        }else{
 //                            return false;
@@ -248,7 +247,10 @@ public class InteractionsBuilder {
                                 if (oneLaterContribTime == 0) {
                                     Map<String, String> curTags = tagTranslator.getTagsAsKeyValueMap(after.getTags());
                                     String tagString = JSON.toJSONString((curTags));
-                                    contribPropertyString = tagString.substring(1,tagString.length()-1)+",";
+                                    //If it has current tags, set the property string:
+                                    if (!curTags.isEmpty()) {
+                                        contribPropertyString = tagString.substring(1, tagString.length() - 1) + ",";
+                                    }
                                 }
 
                                 /* If it's a new object */
@@ -313,10 +315,7 @@ public class InteractionsBuilder {
                                     //If the version numbers are the same, then we have a potential minor version
                                     try {
                                         if (checkMinorVersion && !beforeGeometryEqualsAfterGeometry(contrib)) {
-
                                             minorVersionValue++;
-                                            MINOR_VERSION_CHANGE++;
-
                                             contribPropertyString += minorVersion(contrib, minorVersionValue);
                                         }
 
@@ -345,7 +344,7 @@ public class InteractionsBuilder {
 
                                     if (contrib.getContributionTypes().contains(ContributionType.TAG_CHANGE)) {
 
-                                        try{
+                                        try {
                                             // TODO: A tag change, what are some major tag changes we care about?
                                             Map<String, String> beforeTags = tagTranslator.getTagsAsKeyValueMap(before.getTags());
                                             Map<String, String> afterTags = tagTranslator.getTagsAsKeyValueMap(after.getTags());
@@ -359,8 +358,8 @@ public class InteractionsBuilder {
                                             newTags = difference.entriesOnlyOnRight();
                                             Map<String, ValueDifference<String>> diffTags = difference.entriesDiffering();
                                             diffTags.forEach((strKey, diff) -> {
-                                                String[] mod = {diff.leftValue(),diff.rightValue()};
-                                                modTags.put(strKey,mod);
+                                                String[] mod = {diff.leftValue(), diff.rightValue()};
+                                                modTags.put(strKey, mod);
                                             });
                                             delTags = difference.entriesOnlyOnLeft();
 
@@ -373,7 +372,7 @@ public class InteractionsBuilder {
                                             if (!delTags.isEmpty()) {
                                                 contribPropertyString += "\"@aD\":" + JSON.toJSONString(delTags) + ",";
                                             }
-                                        }catch(Exception e){
+                                        } catch (Exception e) {
                                             TAG_ERRORS++;
                                             if (PRINT_ERRORS) {
                                                 System.err.println("TAG: " +
@@ -382,7 +381,7 @@ public class InteractionsBuilder {
                                                         after.getVersion());
                                             }
 
-                                            if (LOG_ERRORS){
+                                            if (LOG_ERRORS) {
                                                 finalStatusPrintWriter.println("TAG: " +
                                                         contrib.getOSHEntity().getType().toString() + " | " + contrib.getOSHEntity().getId());
                                                 e.printStackTrace(finalStatusPrintWriter);
@@ -390,25 +389,30 @@ public class InteractionsBuilder {
                                         }
                                     }
 
-                                    //If there's a Geometry change, then get the new geometry;
-                                    if (contrib.getContributionTypes().contains(ContributionType.GEOMETRY_CHANGE)) {
+                                    try {
 
-                                        try {
+                                        /* If the geometries are equal, then it's just a MAV */
+                                        if (beforeGeometryEqualsAfterGeometry(contrib)) {
+                                            contribPropertyString += "\"@e\":\"MAV\",";
+
+                                            /* if the geometries are not equal, then it's a MAG */
+                                        } else {
                                             contribPropertyString += majorGeometry(contrib);
-                                        } catch (Exception e) {
-                                            MAJ_GEOM_ERRORS++;
-                                            if (PRINT_ERRORS) {
-                                                System.err.println("ERR: MAJOR GEOMETRY FAIL: " +
-                                                        contrib.getOSHEntity().getType().toString() + " | " +
-                                                        contrib.getOSHEntity().getId() + " | " +
-                                                        after.getVersion());
-                                            }
+                                        }
 
-                                            if (LOG_ERRORS){
-                                                finalStatusPrintWriter.println("ERR: MAJOR GEOMETRY FAIL: " +
-                                                        contrib.getOSHEntity().getType().toString() + " | " + contrib.getOSHEntity().getId());
-                                                e.printStackTrace(finalStatusPrintWriter);
-                                            }
+                                    } catch (Exception e) {
+                                        MAV_ERRORS++;
+                                        if (PRINT_ERRORS) {
+                                            System.err.println("ERR: MAJOR GEOMETRY FAIL: " +
+                                                    contrib.getOSHEntity().getType().toString() + " | " +
+                                                    contrib.getOSHEntity().getId() + " | " +
+                                                    after.getVersion());
+                                        }
+
+                                        if (LOG_ERRORS) {
+                                            finalStatusPrintWriter.println("ERR: MAJOR GEOMETRY FAIL: " +
+                                                    contrib.getOSHEntity().getType().toString() + " | " + contrib.getOSHEntity().getId());
+                                            e.printStackTrace(finalStatusPrintWriter);
                                         }
                                     }
                                 }
@@ -467,7 +471,7 @@ public class InteractionsBuilder {
                     if (count%100000==0) {
                         finalStatusPrintWriter.println(count / 1000000.0 + "M interactions" +
                                 " |CRE:" + CREATION_ERRORS + " |DEL:" + DELETION_ERRORS + " |MIN:" + MIN_VERSION_ERRORS +
-                                " |MAJ:" + MAJ_GEOM_ERRORS + " |TAG:" + TAG_ERRORS + " |EMPTY:" + EMPTY_CONTRIBS + " |ENTITY:"+ENTITY_FAILS);
+                                " |MAV:" + MAV_ERRORS + " |TAG:" + TAG_ERRORS + " |EMPTY:" + EMPTY_CONTRIBS + " |ENTITY:"+ENTITY_FAILS);
                         finalStatusPrintWriter.flush();
                     }
                 }
@@ -485,7 +489,7 @@ public class InteractionsBuilder {
 
         statusPrintWriter.println("\nProcessed " + (count) +  " interactions total:");
         statusPrintWriter.println("|CRE:" + CREATION_ERRORS + " |DEL:" + DELETION_ERRORS + " |MIN:" + MIN_VERSION_ERRORS +
-                " |MAJ:" + MAJ_GEOM_ERRORS + " |TAG:" + TAG_ERRORS + " |EMPTY:" + EMPTY_CONTRIBS + " |ENTITY:"+ENTITY_FAILS);
+                " |MAV:" + MAV_ERRORS + " |TAG:" + TAG_ERRORS + " |EMPTY:" + EMPTY_CONTRIBS + " |ENTITY:"+ENTITY_FAILS);
         statusPrintWriter.println("Status: \n"+
                 "\tNew objects....... "+ NEW_OBJECTS +"\n"+
                 "\tUpdated Objects... "+ UPDATED_OBJECTS +"\n"+
@@ -493,7 +497,9 @@ public class InteractionsBuilder {
                 "\tMinor Versions.... "+ MINOR_VERSION_CHANGE +"\n"+
                 "\tDeleted Objects... "+ DELETED_OBJECTS + "\n" +
                 "\tFailed Entities... "+ ENTITY_FAILS);
-        statusPrintWriter.println("========================");
+        statusPrintWriter.println("-------------------------------");
+        statusPrintWriter.println("Extraction finished at: " + LocalDateTime.now());
+        statusPrintWriter.println("====================================================");
         statusPrintWriter.close();
 
     }
@@ -534,38 +540,21 @@ public class InteractionsBuilder {
 
     public static String minorVersion(OSMContribution contrib, int mV){
 
-        DecimalFormat numberFormat = new DecimalFormat("0.0000");
+        MINOR_VERSION_CHANGE++;
 
-        String sq = "";
-        if (contrib.getGeometryUnclippedAfter().getGeometryType().contains("Polygon") ){
-            sq = "\"@sq\":" + numberFormat.format( avgSquareOffsetProjected(contrib.getGeometryUnclippedAfter()) - avgSquareOffsetProjected(contrib.getGeometryUnclippedBefore()) )+",";
-        }
-
-        return "\"@e\":\"MV\"," +
-               "\"@mV\":"+ mV + "," + sq;
+        return "\"@e\":\"MIV\"," +
+               "\"@mV\":"+ mV + "," + getSquaring(contrib);
 
     }
 
     public static String majorGeometry(OSMContribution contrib){
 
+        MAJOR_GEOMETRY_CHANGE++;
+
         GeoJsonWriter writer = new GeoJsonWriter(18);
         writer.setEncodeCRS(false);
-        DecimalFormat numberFormat = new DecimalFormat("0.0000");
 
-        if (!beforeGeometryEqualsAfterGeometry(contrib)) {
-
-            MAJOR_GEOMETRY_CHANGE++;
-
-            String sq = "";
-            if (contrib.getGeometryUnclippedAfter().getGeometryType().contains("Polygon")) {
-                sq = "\"@sq\":" + numberFormat.format((avgSquareOffsetProjected(contrib.getGeometryUnclippedAfter()) -
-                        avgSquareOffsetProjected(contrib.getGeometryUnclippedBefore()))) + ",";
-            }
-
-            return "\"@e\":\"MG\"," + sq;
-        }else {
-            return "\"@e\":\"mG\",";
-        }
+        return "\"@e\":\"MAG\"," + getSquaring(contrib);
     }
 
     public static String getGeometryString(OSMContribution contrib){
@@ -590,6 +579,17 @@ public class InteractionsBuilder {
             System.err.println("Geometry Reconstruction Error: "+ contrib.getOSHEntity().getType() + " | " +contrib.getOSHEntity().getId());
             return "null";
         }
+    }
+
+    public static String getSquaring(OSMContribution contrib) {
+        DecimalFormat numberFormat = new DecimalFormat("0.0000");
+
+        String sq = "";
+        if (contrib.getGeometryUnclippedAfter().getGeometryType().contains("Polygon")) {
+            sq = "\"@sq\":" + numberFormat.format((avgSquareOffsetProjected(contrib.getGeometryUnclippedAfter()) -
+                    avgSquareOffsetProjected(contrib.getGeometryUnclippedBefore()))) + ",";
+        }
+        return sq;
     }
 
     private static Coordinate projectToSphere(Coordinate coord){

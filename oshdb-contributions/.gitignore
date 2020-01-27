@@ -4,3 +4,4 @@
 db/
 *.geojsonseq
 *.class
+extraction.status
