@@ -1,12 +1,9 @@
 'use strict';
 
-// const csv = require('fast-csv');
-
-// const parse = require('csv-parse')
 const parse = require('csv-parse/lib/sync');
 const turf = require('@turf/turf');
 
-const HEADERS = mapOptions.headers;
+const HEADERS  = mapOptions.headers;
 const MAX_AREA = mapOptions.maxAreaKM;
 
 const ALL_HASHTAGS = true;
@@ -16,7 +13,6 @@ const CORP = false;
 module.exports = function(line, writeData, done) {
      
     const row = parse(line.trim(), {columns: HEADERS})[0]
-                     
     try{
 
         var changesetObject = turf.bboxPolygon([
@@ -58,12 +54,20 @@ module.exports = function(line, writeData, done) {
 
             changesetObject.properties['@area'] = areaKM
 
-            changesetObject.properties['@id'] = row.id
-            changesetObject.properties['@uid'] = row.uid
-            changesetObject.properties['@user'] = row.user
-            changesetObject.properties['@comment'] = tags.comment
-            changesetObject.properties['@timestamp'] = (new Date(row.created_at)).valueOf()/1000
-            changesetObject.properties['@changes'] = row.num_changes
+            changesetObject.properties['@id']             = row.id
+            changesetObject.properties['@uid']            = row.uid
+            changesetObject.properties['@user']           = row.user
+            changesetObject.properties['@comment']        = tags.comment
+            changesetObject.properties['@timestamp']      = (new Date(row.created_at)).valueOf()/1000
+            changesetObject.properties['@changes']        = row.num_changes
+            
+            if (HEADERS.indexOf('days') > -1){
+                changesetObject.properties['@u_changesets']   = row.num_changesets
+                changesetObject.properties['@u_sum_changes']  = row.sum_changes
+                changesetObject.properties['@u_first_edit']   = row.first
+                changesetObject.properties['@u_latest_edit']  = row.latest
+                changesetObject.properties['@u_days_editing'] = row.days
+            }
 
             writeData(JSON.stringify(changesetObject)+"\n");
         }
