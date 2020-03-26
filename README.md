@@ -1,9 +1,18 @@
 # osm-interactions
 
-More an idea at this point than an implementable application / project, I want to document the following observations and put a plan/research agenda in place.
+## Tilesets
+A first round of osm-interaction tilesets are available: 
+
+- [highways.mbtiles - [ 16.6G ]](https://osm-interactions.s3.us-east-2.amazonaws.com/highways.mbtiles)
+- [buildings.mbtiles - [ 19.9G ]](https://osm-interactions.s3.us-east-2.amazonaws.com/buildings.mbtiles)
+
+You can read more about how these are made and what they contain in the [oshdb-contributions README](https://github.com/jenningsanderson/osm-interactions/tree/master/oshdb-contributions).
+
+
+What is osm-interactions? 
 
 ### Objective
-To understand how the map has and will continue to evolve, we need to be able to tell the complete story behind the map to this point [1]. This is not a new realization among the OSM analysis community, but the feasibility of analyzing the map in this way has only more recently become possible through technical innovations. All the while, the community that supports the map has grown immensely and we're overdue for new tools that can handle this.
+To understand how the map has and will continue to evolve, we need to be able to tell the complete story behind the map up to this point [1]. This is not a new realization among the OSM analysis community, but the feasibility of analyzing the map in this way has only more recently become possible through technical innovations. All the while, the community that supports the map has grown immensely and we're overdue for new tools that can handle this.
 
 **tl;dr**
 OSM is not a map or a spatial database, but a record of editing actions, each of which is a discrete _interaction_ between contributors and the map (database); though these are not always visible edits---consider [Tasking-Manager](//tasks.hotosm.org) validation. Analyzing the map as a series of interactions rather than the number of objects enables us to tell a more detailed story of the map's evolution.
