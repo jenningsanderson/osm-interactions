@@ -23,7 +23,7 @@
     "@mapbox/tile-reduce": "^3.3.0",
     "@turf/turf": "^5.1.6",
     "csv-parse": "^4.8.3",
-    "fast-csv": "^3.4.0",
+    "fast-csv": "^4.3.6",
     "json-stream-reduce": "^1.0.1"
   }
 }
