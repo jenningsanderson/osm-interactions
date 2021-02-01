@@ -1,36 +1,37 @@
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.google.common.collect.MapDifference;
-import com.google.common.collect.MapDifference.ValueDifference;
-import com.google.common.collect.Maps;
+import static org.locationtech.jts.algorithm.Angle.angleBetween;
+import static org.locationtech.jts.algorithm.Angle.toDegrees;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.sql.SQLException;
+import java.text.DecimalFormat;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 import org.heigit.bigspatialdata.oshdb.api.db.OSHDBH2;
 import org.heigit.bigspatialdata.oshdb.api.mapreducer.OSMContributionView;
 import org.heigit.bigspatialdata.oshdb.api.object.OSMContribution;
 import org.heigit.bigspatialdata.oshdb.osm.OSMEntity;
 import org.heigit.bigspatialdata.oshdb.osm.OSMType;
-import org.heigit.bigspatialdata.oshdb.util.OSHDBBoundingBox;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBTag;
 import org.heigit.bigspatialdata.oshdb.util.OSHDBTagKey;
 import org.heigit.bigspatialdata.oshdb.util.celliterator.ContributionType;
-import org.heigit.bigspatialdata.oshdb.util.tagtranslator.OSMTag;
-import org.locationtech.jts.geom.*;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.io.geojson.GeoJsonReader;
 import org.locationtech.jts.io.geojson.GeoJsonWriter;
-import java.time.LocalDateTime;
-
-import java.io.File;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.sql.SQLException;
-import java.text.DecimalFormat;
-import java.util.*;
-import java.util.stream.Stream;
-
-import static org.locationtech.jts.algorithm.Angle.angleBetween;
-import static org.locationtech.jts.algorithm.Angle.toDegrees;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.MapDifference.ValueDifference;
+import com.google.common.collect.Maps;
 
 public class InteractionsBuilder {
 
@@ -77,7 +78,8 @@ public class InteractionsBuilder {
         String configFilePath = "~/data/interaction-extraction.config";
 
         /* Initialize the variables to parse */
-        Path h2Path = null;
+        String h2GridPath = null;
+        String h2KeytablesPath = null;
         Polygon areaOfInterest = null;
         GeoJsonReader interestedAreaReader = new GeoJsonReader();
         FileWriter statusFileWriter = null;
@@ -94,8 +96,9 @@ public class InteractionsBuilder {
             String configJSONString = new String( Files.readAllBytes(Paths.get(configFilePath)) );
             JSONObject config = JSON.parseObject(configJSONString);
 
-            h2Path = Paths.get(config.get("oshdb").toString());
-            System.err.println("Will use oshdb: " + h2Path.toString());
+            h2GridPath = config.get("oshdb").toString();
+            h2KeytablesPath = config.get("keytables").toString();
+            System.err.println("Will use oshdb: " + h2GridPath.toString());
 
             Geometry geom = interestedAreaReader.read(config.get("bounds").toString());
             areaOfInterest = geom.getFactory().createPolygon(geom.getCoordinates());
@@ -125,9 +128,10 @@ public class InteractionsBuilder {
         }
 
 
-        try(OSHDBH2 oshdb = new OSHDBH2(h2Path.toString());
-            AdvTagTranslator tagTranslator = new AdvTagTranslator(oshdb.getConnection())){
-          
+        try (var oshdb = new OSHDBH2(h2GridPath);
+            var keytables = new OSHDBH2(h2KeytablesPath);
+            var tagTranslator = new AdvTagTranslator(keytables.getConnection())){
+
             // prefetch filter tagKey sets
             final Set<Integer> tagKeyAdminLevel =  getCaseInsensitiveKey(tagTranslator,"admin_level");
             final Set<Integer> tagKeyNatural = getCaseInsensitiveKey(tagTranslator,"natural");
@@ -141,7 +145,7 @@ public class InteractionsBuilder {
             
             //Turn on parallelization
             PrintWriter finalStatusPrintWriter = statusPrintWriter;
-            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true))
+            Stream<Integer> result = OSMContributionView.on(oshdb.multithreading(true)).keytables(keytables)
 
 //            Stream<Integer> result = OSMContributionView.on(oshdb) //For easier debugging
 
@@ -350,7 +354,7 @@ public class InteractionsBuilder {
                                             Map<String, String> afterTags = tagTranslator.getTagsAsKeyValueMap(after.getTags());
 
                                             Map<String, String> newTags;
-                                            Map<String, String[]> modTags = new HashMap<String, String[]>();
+                                            Map<String, String[]> modTags = new HashMap<>();
                                             Map<String, String> delTags;
 
                                             MapDifference<String, String> difference = Maps.difference(beforeTags, afterTags);
@@ -604,7 +608,7 @@ public class InteractionsBuilder {
         Coordinate[] corners = geom.getCoordinates();
 
         if (corners.length > 2) {
-            ArrayList<Double> cornerAngles = new ArrayList<Double>();
+            ArrayList<Double> cornerAngles = new ArrayList<>();
             for (int i = 2; i < corners.length; i++) {
 
                 cornerAngles.add(toDegrees(angleBetween(projectToSphere( corners[i - 2] ), projectToSphere( corners[i - 1]) , projectToSphere( corners[i]))));
