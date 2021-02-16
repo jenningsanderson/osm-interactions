@@ -10,9 +10,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.heigit.bigspatialdata</groupId>
+            <groupId>org.heigit.ohsome</groupId>
             <artifactId>oshdb-api</artifactId>
-            <version>0.5.1</version>
+            <version>0.6.3</version>
             <type>jar</type>
         </dependency>
 
@@ -49,21 +49,11 @@
 
     </dependencies>
 
-    <repositories>
-        <repository>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-            <id>oshdb-releases</id>
-            <name>Heigit/GIScience repository (releases)</name>
-            <url>http://repo.heigit.org/artifactory/libs-release-local</url>
-        </repository>
-    </repositories>
-
-
     <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <java.version>11</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <build>
         <plugins>
@@ -80,14 +70,6 @@
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
                 </configuration>
             </plugin>
         </plugins>
