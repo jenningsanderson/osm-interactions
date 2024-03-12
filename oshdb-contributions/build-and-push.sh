@@ -1,2 +1,1 @@
-mvn assembly:single && scp target/InteractionsBuilder-jar-with-dependencies.jar cc@tiler.yetilabs.science:interctions.jar
-
+mvn assembly:single && scp target/InteractionsBuilder-jar-with-dependencies.jar cc@yetilabs.science:interactions.jar

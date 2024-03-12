@@ -1,7 +1,6 @@
 gitignore
 .DS_Store
 node_modules/
-*.csv
-*.mbtiles
 .ipynb_checkpoints/
 *.class
+.idea*
